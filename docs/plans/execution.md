@@ -11,7 +11,7 @@
 - [x] MCP tools: `mayrun_run`, `mayrun_check`, `mayrun_status`
 - [x] Example policy + README + install docs
 - [ ] Domain **mayrun.dev** registered and DNS pointed (owner)
-- [ ] First push to `origin/main`
+- [x] First push to `origin/main`
 
 ## Phase 1 — Dogfood (days 1–10)
 
