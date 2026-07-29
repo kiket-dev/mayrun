@@ -1,0 +1,45 @@
+name: e2e-agents
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 6 * * 1" # weekly Monday 06:00 UTC
+
+jobs:
+  opencode:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Install jq / PyYAML
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq jq python3-yaml
+      - name: Install opencode
+        run: |
+          curl -fsSL https://opencode.ai/install | bash
+          echo "$HOME/.opencode/bin" >> "$GITHUB_PATH"
+        continue-on-error: true
+      - name: Build mayrun
+        run: cargo build --locked
+      - name: Run opencode agent e2e
+        env:
+          MAYRUN_BIN: ${{ github.workspace }}/target/debug/mayrun
+          # Provide model auth via repo secrets when available.
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+        run: |
+          chmod +x e2e/agents/*.sh
+          ./e2e/agents/run-opencode.sh
+      - name: Upload receipts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: opencode-receipts
+          path: |
+            /tmp/**/receipts.jsonl
+            **/e2e-*/**/.mayrun/receipts.jsonl
+          if-no-files-found: ignore

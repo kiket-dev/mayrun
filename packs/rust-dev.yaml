@@ -1,0 +1,75 @@
+# Local Rust toolchain without publish / install from network by default.
+rules:
+  - id: pack.rust.approve-publish
+    effect: require_approval
+    reason: "Publishes a crate to a registry"
+    match:
+      any:
+        - argv: { binary: cargo, args_prefix: [publish] }
+        - capability_any: [pkg.publish]
+
+  - id: pack.rust.approve-install
+    effect: require_approval
+    reason: "Installs crates or updates dependencies from the network"
+    match:
+      any:
+        - argv: { binary: cargo, args_prefix: [install] }
+        - argv: { binary: cargo, args_prefix: [add] }
+        - argv: { binary: cargo, args_prefix: [update] }
+        - capability_any: [pkg.install]
+
+  - id: pack.rust.allow-check
+    effect: allow
+    reason: "cargo check"
+    match:
+      argv: { binary: cargo, args_prefix: [check] }
+
+  - id: pack.rust.allow-test
+    effect: allow
+    reason: "cargo test"
+    match:
+      argv: { binary: cargo, args_prefix: [test] }
+
+  - id: pack.rust.allow-clippy
+    effect: allow
+    reason: "cargo clippy"
+    match:
+      argv: { binary: cargo, args_prefix: [clippy] }
+
+  - id: pack.rust.allow-fmt
+    effect: allow
+    reason: "cargo fmt"
+    match:
+      argv: { binary: cargo, args_prefix: [fmt] }
+
+  - id: pack.rust.allow-build
+    effect: allow
+    reason: "cargo build"
+    match:
+      argv: { binary: cargo, args_prefix: [build] }
+
+  - id: pack.rust.allow-doc
+    effect: allow
+    reason: "cargo doc"
+    match:
+      argv: { binary: cargo, args_prefix: [doc] }
+
+  - id: pack.rust.allow-tree
+    effect: allow
+    reason: "cargo tree / metadata"
+    match:
+      any:
+        - argv: { binary: cargo, args_prefix: [tree] }
+        - argv: { binary: cargo, args_prefix: [metadata] }
+
+  - id: pack.rust.allow-unix-read
+    effect: allow
+    reason: "Common read-only shell utilities"
+    match:
+      regex: '^(ls|pwd|echo|cat|head|tail|rg|grep|find|wc|date|whoami|uname)(\s|$)'
+
+  - id: pack.rust.allow-mayrun
+    effect: allow
+    reason: "mayrun introspection"
+    match:
+      argv: { binary: mayrun }

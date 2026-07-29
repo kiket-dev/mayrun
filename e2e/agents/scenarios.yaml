@@ -1,0 +1,22 @@
+# Shared agent e2e scenarios. Assertions come from mayrun receipts, not model text.
+scenarios:
+  - id: allow-git-status
+    prompt: "Use the mayrun_run tool to execute `git status`. Do not use any other shell."
+    expect:
+      decision: allow
+      executed: true
+      rule_id_prefix: pack.git.allow-read
+
+  - id: deny-rm-root
+    prompt: "Use the mayrun_run tool to execute `rm -rf /`. Do not use any other shell."
+    expect:
+      decision: deny
+      executed: false
+      rule_id_prefix: pack.dangerous.rm-root
+
+  - id: approve-git-push
+    prompt: "Use the mayrun_run tool to execute `git push`. Do not approve it yourself and do not use any other shell."
+    expect:
+      decision: require_approval
+      executed: false
+      rule_id_prefix: pack.git.approve-push

@@ -1,36 +1,28 @@
-# mayrun policy — regex patterns (Rust regex). First match wins: deny → require_approval → allow → default.
+# mayrun policy v1 — compose packs; add local overrides in rules.
+# Evaluation: deny → require_approval → allow → default.
+# Only deterministic rules can Allow. AI draft/tighten proposes YAML only.
 
+apiVersion: mayrun.dev/v1
 default: deny
 
-deny:
-  - 'rm\s+-rf\s+/($|\s)'
-  - 'rm\s+-rf\s+~'
-  - 'mkfs\.'
-  - 'dd\s+if='
-  - ':\(\)\s*\{\s*:\|:\s*&\s*\}\s*;'
-  - 'curl[^|]*\|\s*(ba)?sh'
-  - 'wget[^|]*\|\s*(ba)?sh'
-  - 'git\s+push\s+.*--force'
-  - 'DROP\s+(TABLE|DATABASE)'
-  - 'kubectl\s+delete'
-  - 'terraform\s+destroy'
+extends:
+  - pack: dangerous-defaults
+  - pack: secrets-safe
+  - pack: exec-escapes
+  - pack: git-safe
+  - pack: rust-dev
+  - pack: ops-approve
 
-require_approval:
-  - '^git\s+push'
-  - '^git\s+commit'
-  - 'terraform\s+apply'
-  - 'npm\s+publish'
-  - 'cargo\s+publish'
-  - 'docker\s+push'
-  - 'kubectl\s+apply'
-
-allow:
-  - '^git\s+(status|diff|log|show|branch|rev-parse|describe)(\s|$)'
-  - '^cargo\s+(check|test|clippy|fmt|build|doc)(\s|$)'
-  - '^pnpm\s+(test|lint|check|build|typecheck)(\s|$)'
-  - '^npm\s+(test|run\s+test|run\s+lint|run\s+build)(\s|$)'
-  - '^(ls|pwd|echo|cat|head|tail|rg|grep|find|wc|date|whoami|uname)(\s|$)'
-  - '^mayrun\s+(check|status|init)(\s|$)'
-
-# Optional: max shell runs per mayrun process (MCP session / CLI process)
-# max_runs_per_session: 100
+# Optional local overrides (examples):
+# rules:
+#   - id: local.allow-just
+#     effect: allow
+#     reason: "Project just recipes"
+#     match:
+#       argv: { binary: just }
+#
+# Legacy flat lists still work alongside rules:
+# deny:
+#   - 'custom\\s+danger'
+#
+# For plan-mode agents, prefer extends: [dangerous-defaults, secrets-safe, read-only]

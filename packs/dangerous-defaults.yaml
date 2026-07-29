@@ -1,0 +1,132 @@
+# Built-in deny / high-risk defaults. Always extend this pack (or equivalent).
+rules:
+  - id: pack.dangerous.rm-root
+    effect: deny
+    reason: "Destructive delete targeting root filesystem"
+    match:
+      any:
+        - regex: 'rm\s+-rf\s+/($|\s)'
+        - argv: { binary: rm, flags_any: ["-rf", "-fr"], path_any: ["/"] }
+
+  - id: pack.dangerous.rm-home
+    effect: deny
+    reason: "Destructive delete targeting home directory"
+    match:
+      any:
+        - regex: 'rm\s+-rf\s+~'
+        - argv: { binary: rm, flags_any: ["-rf", "-fr"], path_any: ["~"] }
+
+  - id: pack.dangerous.mkfs
+    effect: deny
+    reason: "Filesystem format / wipe"
+    match:
+      regex: 'mkfs\.'
+
+  - id: pack.dangerous.dd
+    effect: deny
+    reason: "Raw disk write via dd"
+    match:
+      regex: 'dd\s+if='
+
+  - id: pack.dangerous.fork-bomb
+    effect: deny
+    reason: "Classic fork bomb"
+    match:
+      regex: ':\(\)\s*\{\s*:\|:\s*&\s*\}\s*;'
+
+  - id: pack.dangerous.curl-pipe-shell
+    effect: deny
+    reason: "Download piped to a shell"
+    match:
+      regex: 'curl[^|]*\|\s*(ba)?sh'
+
+  - id: pack.dangerous.wget-pipe-shell
+    effect: deny
+    reason: "Download piped to a shell"
+    match:
+      regex: 'wget[^|]*\|\s*(ba)?sh'
+
+  - id: pack.dangerous.git-force-push
+    effect: deny
+    reason: "Force-push rewrites remote history"
+    match:
+      any:
+        - regex: 'git\s+push\s+.*--force'
+        - argv: { binary: git, args_prefix: [push], flags_any: ["--force", "-f"] }
+
+  - id: pack.dangerous.sql-drop
+    effect: deny
+    reason: "Destructive SQL DROP"
+    match:
+      regex: 'DROP\s+(TABLE|DATABASE)'
+
+  - id: pack.dangerous.kubectl-delete
+    effect: deny
+    reason: "Kubernetes delete is destructive"
+    match:
+      argv: { binary: kubectl, args_prefix: [delete] }
+
+  - id: pack.dangerous.terraform-destroy
+    effect: deny
+    reason: "Infrastructure destroy"
+    match:
+      any:
+        - argv: { binary: terraform, args_prefix: [destroy] }
+        - argv: { binary: tofu, args_prefix: [destroy] }
+        - capability_any: [infra.destroy]
+
+  - id: pack.dangerous.find-delete
+    effect: deny
+    reason: "find -delete is destructive"
+    match:
+      argv: { binary: find, args_contains: ["-delete"] }
+
+  - id: pack.dangerous.sudo
+    effect: deny
+    reason: "Privilege escalation via sudo/doas"
+    match:
+      capability_any: [priv.escalate]
+
+  - id: pack.dangerous.shell-rc-write
+    effect: deny
+    reason: "Writes to shell init files persist agent control across sessions"
+    match:
+      any:
+        - regex: '(>>|>|tee(\s+-a)?)\s+[^\s]*\.(bashrc|zshrc|profile|bash_profile|zprofile)\b'
+        - regex: 'sed\s+[^\n]*-i[^\n]*\.(bashrc|zshrc|profile|bash_profile|zprofile)\b'
+        - regex: '(>>|>)\s+[^\s]*/etc/(profile|bash\.bashrc|zsh)'
+
+  - id: pack.dangerous.base64-pipe-shell
+    effect: deny
+    reason: "Decoded payload piped to a shell"
+    match:
+      regex: 'base64\s+(-d|--decode)[^|]*\|\s*(ba)?sh'
+
+  - id: pack.dangerous.eval-subshell
+    effect: deny
+    reason: "eval of command substitution can run arbitrary code"
+    match:
+      regex: 'eval\s+(\$\(|`)'
+
+  - id: pack.dangerous.env-pipe-net
+    effect: deny
+    reason: "Environment dump piped to a network binary"
+    match:
+      regex: '(^|[\s;|&])(env|printenv|set)\s*\|[^\n]*(curl|wget|nc|ncat|ssh|scp)\b'
+
+  - id: pack.dangerous.chmod-777
+    effect: deny
+    reason: "World-writable chmod on broad paths"
+    match:
+      any:
+        - regex: 'chmod\s+(-R\s+)?777\s+/'
+        - regex: 'chmod\s+-R\s+777\b'
+        - argv: { binary: chmod, args_contains: ["777"], flags_any: ["-R"] }
+
+  - id: pack.dangerous.crontab-edit
+    effect: require_approval
+    reason: "Crontab edits persist scheduled execution"
+    match:
+      any:
+        - argv: { binary: crontab }
+        - regex: '(^|[\s;|&])crontab\b'

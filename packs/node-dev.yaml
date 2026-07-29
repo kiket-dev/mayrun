@@ -1,0 +1,72 @@
+# Local Node/JS toolchain without publish by default.
+rules:
+  - id: pack.node.approve-publish
+    effect: require_approval
+    reason: "Publishes a package to a registry"
+    match:
+      any:
+        - argv: { binary: npm, args_prefix: [publish] }
+        - argv: { binary: pnpm, args_prefix: [publish] }
+        - argv: { binary: yarn, args_prefix: [publish] }
+        - argv: { binary: bun, args_prefix: [publish] }
+        - capability_any: [pkg.publish]
+
+  - id: pack.node.approve-install
+    effect: require_approval
+    reason: "Installs packages from the network"
+    match:
+      any:
+        - argv: { binary: npm, args_prefix: [install] }
+        - argv: { binary: npm, args_prefix: [i] }
+        - argv: { binary: npm, args_prefix: [ci] }
+        - argv: { binary: pnpm, args_prefix: [install] }
+        - argv: { binary: pnpm, args_prefix: [add] }
+        - argv: { binary: yarn, args_prefix: [install] }
+        - argv: { binary: yarn, args_prefix: [add] }
+        - argv: { binary: bun, args_prefix: [install] }
+        - argv: { binary: bun, args_prefix: [add] }
+        - capability_any: [pkg.install]
+
+  - id: pack.node.allow-npm-test
+    effect: allow
+    reason: "npm test / run scripts"
+    match:
+      any:
+        - argv: { binary: npm, args_prefix: [test] }
+        - argv: { binary: npm, args_prefix: [run, test] }
+        - argv: { binary: npm, args_prefix: [run, lint] }
+        - argv: { binary: npm, args_prefix: [run, build] }
+        - argv: { binary: npm, args_prefix: [run, typecheck] }
+
+  - id: pack.node.allow-pnpm
+    effect: allow
+    reason: "pnpm local scripts"
+    match:
+      any:
+        - argv: { binary: pnpm, args_prefix: [test] }
+        - argv: { binary: pnpm, args_prefix: [lint] }
+        - argv: { binary: pnpm, args_prefix: [check] }
+        - argv: { binary: pnpm, args_prefix: [build] }
+        - argv: { binary: pnpm, args_prefix: [typecheck] }
+
+  - id: pack.node.allow-yarn-bun
+    effect: allow
+    reason: "yarn/bun local scripts"
+    match:
+      any:
+        - argv: { binary: yarn, args_prefix: [test] }
+        - argv: { binary: yarn, args_prefix: [build] }
+        - argv: { binary: bun, args_prefix: [test] }
+        - argv: { binary: bun, args_prefix: [run, test] }
+
+  - id: pack.node.allow-unix-read
+    effect: allow
+    reason: "Common read-only shell utilities"
+    match:
+      regex: '^(ls|pwd|echo|cat|head|tail|rg|grep|find|wc|date|whoami|uname)(\s|$)'
+
+  - id: pack.node.allow-mayrun
+    effect: allow
+    reason: "mayrun introspection"
+    match:
+      argv: { binary: mayrun }

@@ -1,8 +1,3 @@
-mod mcp;
-mod policy;
-mod receipts;
-mod shell;
-
 use std::path::PathBuf;
 use std::process::ExitCode;
 
@@ -11,10 +6,12 @@ use clap::{Parser, Subcommand};
 use rmcp::{ServiceExt, transport::stdio};
 use tracing_subscriber::EnvFilter;
 
-use crate::mcp::MayrunServer;
-use crate::policy::{Decision, default_policy_yaml, find_policy_path, load_policy};
-use crate::receipts::{ReceiptLog, default_receipt_path};
-use crate::shell::Runner;
+use mayrun::author;
+use mayrun::mcp::MayrunServer;
+use mayrun::packs;
+use mayrun::policy::{Decision, default_policy_yaml, find_policy_path, load_policy};
+use mayrun::receipts::{ReceiptLog, default_receipt_path};
+use mayrun::shell::{RunError, Runner};
 
 #[derive(Parser, Debug)]
 #[command(
@@ -70,6 +67,30 @@ enum Commands {
         #[arg(long)]
         receipts: Option<PathBuf>,
     },
+    /// Policy authoring helpers (offline; never auto-Allow at runtime)
+    Policy {
+        #[command(subcommand)]
+        command: PolicyCmd,
+    },
+}
+
+#[derive(Subcommand, Debug)]
+enum PolicyCmd {
+    /// Draft a policy YAML from natural-language intent (review before use)
+    Draft {
+        /// Intent description
+        intent: String,
+    },
+    /// Propose rule snippets from receipt history
+    Tighten {
+        #[arg(long)]
+        receipts: Option<PathBuf>,
+        /// Minimum times a pattern must appear
+        #[arg(long, default_value_t = 2)]
+        min_count: usize,
+    },
+    /// List built-in pack names
+    Packs,
 }
 
 #[tokio::main]
@@ -105,9 +126,17 @@ async fn run() -> Result<ExitCode> {
         Commands::Check { command, policy } => {
             let path = resolve_policy(policy)?;
             let compiled = load_policy(&path)?;
-            let decision = compiled.evaluate(&command);
-            println!("{decision:?}");
-            Ok(match decision {
+            let ev = compiled.evaluate_detailed(&command);
+            println!(
+                "{}",
+                serde_json::json!({
+                    "decision": ev.decision,
+                    "rule_id": ev.rule_id,
+                    "reason": ev.reason,
+                    "capabilities": ev.capabilities,
+                })
+            );
+            Ok(match ev.decision {
                 Decision::Allow => ExitCode::SUCCESS,
                 Decision::RequireApproval => ExitCode::from(2),
                 Decision::Deny => ExitCode::from(3),
@@ -133,13 +162,17 @@ async fn run() -> Result<ExitCode> {
                     }
                     Ok(ExitCode::from(result.exit_code.clamp(0, 255) as u8))
                 }
-                Err(crate::shell::RunError::Denied) => {
-                    eprintln!("mayrun: denied by policy");
+                Err(RunError::Denied { rule_id, reason }) => {
+                    eprintln!(
+                        "mayrun: denied by policy{}",
+                        format_prov(rule_id.as_deref(), reason.as_deref())
+                    );
                     Ok(ExitCode::from(3))
                 }
-                Err(crate::shell::RunError::ApprovalRequired { id }) => {
+                Err(RunError::ApprovalRequired { id, rule_id, reason }) => {
                     eprintln!(
-                        "mayrun: approval required (receipt {id}). Re-run with --approve after confirming."
+                        "mayrun: approval required (receipt {id}){}. Re-run with --approve after confirming.",
+                        format_prov(rule_id.as_deref(), reason.as_deref())
                     );
                     Ok(ExitCode::from(2))
                 }
@@ -154,20 +187,29 @@ async fn run() -> Result<ExitCode> {
             let path = resolve_policy(policy)?;
             let compiled = load_policy(&path)?;
             let log = ReceiptLog::open(receipts.unwrap_or_else(default_receipt_path))?;
+            let (allow, deny, require_approval) = compiled.counts_by_effect();
             println!("policy: {}", path.display());
             println!("default: {:?}", compiled.raw.default);
             println!(
-                "rules: allow={} deny={} require_approval={}",
-                compiled.raw.allow.len(),
-                compiled.raw.deny.len(),
-                compiled.raw.require_approval.len()
+                "rules: total={} allow={allow} deny={deny} require_approval={require_approval}",
+                compiled.rule_count()
             );
+            if !compiled.raw.extends.is_empty() {
+                let packs: Vec<_> = compiled
+                    .raw
+                    .extends
+                    .iter()
+                    .map(|e| e.pack_name())
+                    .collect();
+                println!("extends: {}", packs.join(", "));
+            }
             println!("receipts: {}", log.path().display());
             for r in log.recent(limit)? {
                 println!(
-                    "- {} {:?} executed={} exit={:?} cmd={}",
+                    "- {} {:?} rule={} executed={} exit={:?} cmd={}",
                     &r.id[..8.min(r.id.len())],
                     r.decision,
+                    r.rule_id.as_deref().unwrap_or("-"),
                     r.executed,
                     r.exit_code,
                     r.command
@@ -183,6 +225,41 @@ async fn run() -> Result<ExitCode> {
             service.waiting().await?;
             Ok(ExitCode::SUCCESS)
         }
+        Commands::Policy { command } => match command {
+            PolicyCmd::Draft { intent } => {
+                let yaml = author::draft_policy(&intent).map_err(|e| anyhow::anyhow!(e))?;
+                print!("{yaml}");
+                if !yaml.ends_with('\n') {
+                    println!();
+                }
+                Ok(ExitCode::SUCCESS)
+            }
+            PolicyCmd::Tighten {
+                receipts,
+                min_count,
+            } => {
+                let log = ReceiptLog::open(receipts.unwrap_or_else(default_receipt_path))?;
+                let all = log.all()?;
+                let yaml = author::tighten_from_receipts(&all, min_count.max(1));
+                print!("{yaml}");
+                Ok(ExitCode::SUCCESS)
+            }
+            PolicyCmd::Packs => {
+                for name in packs::PACK_NAMES {
+                    println!("{name}");
+                }
+                Ok(ExitCode::SUCCESS)
+            }
+        },
+    }
+}
+
+fn format_prov(rule_id: Option<&str>, reason: Option<&str>) -> String {
+    match (rule_id, reason) {
+        (Some(id), Some(r)) => format!(" [{id}] {r}"),
+        (Some(id), None) => format!(" [{id}]"),
+        (None, Some(r)) => format!(" {r}"),
+        (None, None) => String::new(),
     }
 }
 

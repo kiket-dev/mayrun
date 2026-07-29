@@ -18,10 +18,12 @@ Coding agents inherit broad shell/cloud access. Prompt “be careful” is not a
 | Layer | Choice |
 | --- | --- |
 | Runtime | Rust CLI + MCP stdio server |
-| Policy | Repo YAML (`mayrun.policy.yaml`) |
-| Evidence | Local hash-chained JSONL receipts |
+| Policy | Repo YAML (`mayrun.policy.yaml`) — packs + structured rules; deterministic Allow only |
+| Evidence | Local hash-chained JSONL receipts (`rule_id` / `reason`) |
 | Paid cliff (later) | CI gate / license — fail PR on policy violations |
-| Non-goals (30d) | IdP, MCP proxy mesh, Kiket billing, dashboards |
+| Non-goals (30d) | IdP, MCP proxy mesh, Kiket billing, dashboards, live-LLM Allow |
+
+**Policy invariant:** only deterministic rules (and human `--approve`) can **Allow**. AI draft/tighten proposes YAML for review; never silent Allow at runtime.
 
 ## ICP
 

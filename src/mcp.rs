@@ -13,7 +13,7 @@ use rmcp::{
 use serde::Deserialize;
 use tokio::sync::Mutex;
 
-use crate::policy::{CompiledPolicy, Decision, find_policy_path, load_policy};
+use crate::policy::{Decision, find_policy_path, load_policy};
 use crate::receipts::{ReceiptLog, default_receipt_path};
 use crate::shell::Runner;
 
@@ -33,8 +33,25 @@ pub struct StatusArgs {
     pub limit: usize,
 }
 
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+pub struct DraftArgs {
+    /// Natural-language intent for a policy draft (review before applying).
+    pub intent: String,
+}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+pub struct TightenArgs {
+    /// Minimum times a pattern must appear (default 2).
+    #[serde(default = "default_min_count")]
+    pub min_count: usize,
+}
+
 fn default_limit() -> usize {
     10
+}
+
+fn default_min_count() -> usize {
+    2
 }
 
 #[derive(Clone)]
@@ -77,6 +94,9 @@ impl MayrunServer {
                 let body = serde_json::json!({
                     "ok": true,
                     "decision": result.receipt.decision,
+                    "rule_id": result.receipt.rule_id,
+                    "reason": result.receipt.reason,
+                    "capabilities": result.evaluation.capabilities,
                     "approved": result.receipt.approved,
                     "exit_code": result.exit_code,
                     "receipt_id": result.receipt.id,
@@ -88,20 +108,26 @@ impl MayrunServer {
                     body.to_string(),
                 )]))
             }
-            Err(crate::shell::RunError::Denied) => Ok(CallToolResult::error(vec![Content::text(
-                serde_json::json!({
-                    "ok": false,
-                    "decision": Decision::Deny,
-                    "error": "denied by policy",
-                    "command": args.command,
-                })
-                .to_string(),
-            )])),
-            Err(crate::shell::RunError::ApprovalRequired { id }) => {
+            Err(crate::shell::RunError::Denied { rule_id, reason }) => {
+                Ok(CallToolResult::error(vec![Content::text(
+                    serde_json::json!({
+                        "ok": false,
+                        "decision": Decision::Deny,
+                        "rule_id": rule_id,
+                        "reason": reason,
+                        "error": "denied by policy",
+                        "command": args.command,
+                    })
+                    .to_string(),
+                )]))
+            }
+            Err(crate::shell::RunError::ApprovalRequired { id, rule_id, reason }) => {
                 Ok(CallToolResult::error(vec![Content::text(
                     serde_json::json!({
                         "ok": false,
                         "decision": Decision::RequireApproval,
+                        "rule_id": rule_id,
+                        "reason": reason,
                         "error": "approval required",
                         "receipt_id": id,
                         "hint": "Ask the human to confirm, then call mayrun_run again with approved=true",
@@ -127,12 +153,15 @@ impl MayrunServer {
             .receipts()
             .recent(args.limit.max(1).min(100))
             .map_err(|e| McpError::internal_error(e.to_string(), None))?;
+        let (allow, deny, require_approval) = runner.policy().counts_by_effect();
         let body = serde_json::json!({
             "policy_path": self.policy_path,
             "default": runner.policy().raw.default,
-            "allow_rules": runner.policy().raw.allow.len(),
-            "deny_rules": runner.policy().raw.deny.len(),
-            "require_approval_rules": runner.policy().raw.require_approval.len(),
+            "rule_count": runner.policy().rule_count(),
+            "allow_rules": allow,
+            "deny_rules": deny,
+            "require_approval_rules": require_approval,
+            "extends": runner.policy().raw.extends.iter().map(|e| e.pack_name()).collect::<Vec<_>>(),
             "receipt_path": runner.receipts().path(),
             "recent_receipts": recent,
         });
@@ -141,17 +170,61 @@ impl MayrunServer {
         )]))
     }
 
-    #[tool(description = "Evaluate a command against policy without executing it.")]
+    #[tool(description = "Evaluate a command against policy without executing it. Returns decision, rule_id, reason, and capabilities.")]
     async fn mayrun_check(
         &self,
         Parameters(args): Parameters<RunArgs>,
     ) -> Result<CallToolResult, McpError> {
         let runner = self.runner.lock().await;
-        let decision = runner.evaluate(&args.command);
+        let ev = runner.evaluate_detailed(&args.command);
         Ok(CallToolResult::success(vec![Content::text(
             serde_json::json!({
                 "command": args.command,
-                "decision": decision,
+                "decision": ev.decision,
+                "rule_id": ev.rule_id,
+                "reason": ev.reason,
+                "capabilities": ev.capabilities,
+            })
+            .to_string(),
+        )]))
+    }
+
+    #[tool(
+        description = "Draft a mayrun policy YAML from natural-language intent. Output is a proposal only — never auto-applies. Human must review and write the file."
+    )]
+    async fn mayrun_policy_suggest(
+        &self,
+        Parameters(args): Parameters<DraftArgs>,
+    ) -> Result<CallToolResult, McpError> {
+        let yaml = crate::author::draft_policy(&args.intent)
+            .map_err(|e| McpError::internal_error(e, None))?;
+        Ok(CallToolResult::success(vec![Content::text(
+            serde_json::json!({
+                "proposal_only": true,
+                "warning": "Review YAML before writing to mayrun.policy.yaml. AI never grants runtime Allow.",
+                "yaml": yaml,
+            })
+            .to_string(),
+        )]))
+    }
+
+    #[tool(
+        description = "Propose policy rule snippets from recent receipt history (deterministic). Proposal only — never auto-applies."
+    )]
+    async fn mayrun_policy_tighten(
+        &self,
+        Parameters(args): Parameters<TightenArgs>,
+    ) -> Result<CallToolResult, McpError> {
+        let runner = self.runner.lock().await;
+        let all = runner
+            .receipts()
+            .all()
+            .map_err(|e| McpError::internal_error(e.to_string(), None))?;
+        let yaml = crate::author::tighten_from_receipts(&all, args.min_count.max(1));
+        Ok(CallToolResult::success(vec![Content::text(
+            serde_json::json!({
+                "proposal_only": true,
+                "yaml": yaml,
             })
             .to_string(),
         )]))
@@ -163,7 +236,7 @@ impl ServerHandler for MayrunServer {
     fn get_info(&self) -> ServerInfo {
         ServerInfo {
             instructions: Some(
-                "mayrun gates shell side effects for coding agents. Use mayrun_check or mayrun_run instead of unrestricted shell. Respect deny and require_approval decisions."
+                "mayrun gates shell side effects for coding agents. Use mayrun_check or mayrun_run instead of unrestricted shell. Respect deny and require_approval decisions. Policy suggest/tighten tools only propose YAML for human review."
                     .into(),
             ),
             capabilities: ServerCapabilities::builder().enable_tools().build(),
@@ -171,7 +244,3 @@ impl ServerHandler for MayrunServer {
         }
     }
 }
-
-/// Re-export for type visibility in tests.
-#[allow(dead_code)]
-pub type PolicyRef = CompiledPolicy;

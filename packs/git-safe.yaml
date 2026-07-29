@@ -1,0 +1,41 @@
+# Safe git read + approval for writes/publish.
+rules:
+  - id: pack.git.approve-push
+    effect: require_approval
+    reason: "Publishes commits to a remote"
+    match:
+      any:
+        - argv: { binary: git, args_prefix: [push] }
+        - capability_any: [scm.publish]
+
+  - id: pack.git.approve-reset-hard
+    effect: require_approval
+    reason: "git reset --hard discards local work"
+    match:
+      any:
+        - argv: { binary: git, args_prefix: [reset], flags_any: ["--hard"] }
+        - regex: 'git\s+reset\s+[^\n]*--hard'
+
+  - id: pack.git.approve-commit
+    effect: require_approval
+    reason: "Creates a git commit"
+    match:
+      any:
+        - argv: { binary: git, args_prefix: [commit] }
+        - capability_any: [scm.write]
+
+  - id: pack.git.allow-read
+    effect: allow
+    reason: "Read-only git inspection"
+    match:
+      any:
+        - argv: { binary: git, args_prefix: [status] }
+        - argv: { binary: git, args_prefix: [diff] }
+        - argv: { binary: git, args_prefix: [log] }
+        - argv: { binary: git, args_prefix: [show] }
+        - argv: { binary: git, args_prefix: [branch] }
+        - argv: { binary: git, args_prefix: [rev-parse] }
+        - argv: { binary: git, args_prefix: [describe] }
+        - argv: { binary: git, args_prefix: [blame] }
+        - argv: { binary: git, args_prefix: [ls-files] }
+        - capability_any: [scm.read]

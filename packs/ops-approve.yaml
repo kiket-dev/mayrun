@@ -1,0 +1,27 @@
+# Extra approvals for infra / cluster / container mutations (optional pack).
+rules:
+  - id: pack.ops.approve-terraform-apply
+    effect: require_approval
+    reason: "Applies infrastructure changes"
+    match:
+      any:
+        - argv: { binary: terraform, args_prefix: [apply] }
+        - argv: { binary: tofu, args_prefix: [apply] }
+        - capability_any: [infra.apply]
+
+  - id: pack.ops.approve-kubectl-apply
+    effect: require_approval
+    reason: "Applies Kubernetes manifests"
+    match:
+      any:
+        - argv: { binary: kubectl, args_prefix: [apply] }
+        - capability_any: [cluster.mutate]
+
+  - id: pack.ops.approve-docker-push
+    effect: require_approval
+    reason: "Pushes a container image"
+    match:
+      any:
+        - argv: { binary: docker, args_prefix: [push] }
+        - argv: { binary: podman, args_prefix: [push] }
+        - capability_any: [container.mutate]

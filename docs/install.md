@@ -39,7 +39,10 @@ Same stdio command: `mayrun mcp`. Working directory should be the repo that cont
 ## Verify
 
 ```bash
-mayrun check 'echo hi'    # Allow under default example policy
+mayrun check 'echo hi'    # Allow under default example policy (JSON: decision, rule_id, reason)
 mayrun check 'rm -rf /'   # Deny
 mayrun status
+mayrun policy packs
 ```
+
+Policy language: [policy.md](./policy.md).

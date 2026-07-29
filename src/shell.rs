@@ -8,8 +8,8 @@ use thiserror::Error;
 use tokio::process::Command;
 use tokio::time::timeout;
 
-use crate::policy::{CompiledPolicy, Decision};
-use crate::receipts::{Receipt, ReceiptLog};
+use crate::policy::{CompiledPolicy, Decision, Evaluation};
+use crate::receipts::{AppendOpts, Receipt, ReceiptLog};
 
 const PREVIEW_CHARS: usize = 2_000;
 const DEFAULT_TIMEOUT_SECS: u64 = 120;
@@ -17,9 +17,16 @@ const DEFAULT_TIMEOUT_SECS: u64 = 120;
 #[derive(Debug, Error)]
 pub enum RunError {
     #[error("denied by policy")]
-    Denied,
-    #[error("approval required (id={id}): run `mayrun approve {id}` then retry, or pass --approve")]
-    ApprovalRequired { id: String },
+    Denied {
+        rule_id: Option<String>,
+        reason: Option<String>,
+    },
+    #[error("approval required (id={id})")]
+    ApprovalRequired {
+        id: String,
+        rule_id: Option<String>,
+        reason: Option<String>,
+    },
     #[error("session run budget exceeded ({max})")]
     BudgetExceeded { max: u32 },
     #[error("io error: {0}")]
@@ -33,6 +40,7 @@ pub enum RunError {
 #[derive(Debug, Clone)]
 pub struct RunResult {
     pub receipt: Receipt,
+    pub evaluation: Evaluation,
     pub stdout: String,
     pub stderr: String,
     pub exit_code: i32,
@@ -63,58 +71,75 @@ impl Runner {
         &self.receipts
     }
 
+    #[allow(dead_code)]
     pub fn evaluate(&self, command: &str) -> Decision {
         self.policy.evaluate(command)
+    }
+
+    pub fn evaluate_detailed(&self, command: &str) -> Evaluation {
+        self.policy.evaluate_detailed(command)
     }
 
     pub async fn run(&mut self, command: &str, force_approve: bool) -> Result<RunResult, RunError> {
         if let Some(max) = self.policy.raw.max_runs_per_session {
             let n = self.runs.load(Ordering::Relaxed);
             if n >= max {
-                let _ = self.receipts.append(
-                    command,
-                    Decision::Deny,
-                    false,
-                    false,
-                    None,
-                    None,
-                    Some(format!("budget exceeded ({max})")),
-                )?;
+                let _ = self.receipts.append(AppendOpts {
+                    command: command.into(),
+                    decision: Decision::Deny,
+                    rule_id: None,
+                    reason: Some(format!("budget exceeded ({max})")),
+                    approved: false,
+                    executed: false,
+                    exit_code: None,
+                    stdout_preview: None,
+                    stderr_preview: None,
+                })?;
                 return Err(RunError::BudgetExceeded { max });
             }
         }
 
-        let decision = self.policy.evaluate(command);
-        match decision {
+        let evaluation = self.policy.evaluate_detailed(command);
+        match evaluation.decision {
             Decision::Deny => {
-                let receipt = self.receipts.append(
-                    command,
-                    Decision::Deny,
-                    false,
-                    false,
-                    None,
-                    None,
-                    Some("denied by policy".into()),
-                )?;
-                let _ = receipt;
-                Err(RunError::Denied)
+                let _ = self.receipts.append(AppendOpts {
+                    command: command.into(),
+                    decision: Decision::Deny,
+                    rule_id: evaluation.rule_id.clone(),
+                    reason: evaluation.reason.clone(),
+                    approved: false,
+                    executed: false,
+                    exit_code: None,
+                    stdout_preview: None,
+                    stderr_preview: None,
+                })?;
+                Err(RunError::Denied {
+                    rule_id: evaluation.rule_id,
+                    reason: evaluation.reason,
+                })
             }
             Decision::RequireApproval if !force_approve => {
-                let receipt = self.receipts.append(
-                    command,
-                    Decision::RequireApproval,
-                    false,
-                    false,
-                    None,
-                    None,
-                    Some("approval required".into()),
-                )?;
-                Err(RunError::ApprovalRequired { id: receipt.id })
+                let receipt = self.receipts.append(AppendOpts {
+                    command: command.into(),
+                    decision: Decision::RequireApproval,
+                    rule_id: evaluation.rule_id.clone(),
+                    reason: evaluation.reason.clone(),
+                    approved: false,
+                    executed: false,
+                    exit_code: None,
+                    stdout_preview: None,
+                    stderr_preview: None,
+                })?;
+                Err(RunError::ApprovalRequired {
+                    id: receipt.id,
+                    rule_id: evaluation.rule_id,
+                    reason: evaluation.reason,
+                })
             }
             Decision::Allow | Decision::RequireApproval => {
                 self.runs.fetch_add(1, Ordering::Relaxed);
-                let approved = matches!(decision, Decision::RequireApproval) && force_approve;
-                self.execute(command, decision, approved).await
+                let approved = matches!(evaluation.decision, Decision::RequireApproval) && force_approve;
+                self.execute(command, evaluation, approved).await
             }
         }
     }
@@ -122,7 +147,7 @@ impl Runner {
     async fn execute(
         &mut self,
         command: &str,
-        decision: Decision,
+        evaluation: Evaluation,
         approved: bool,
     ) -> Result<RunResult, RunError> {
         let child = Command::new("sh")
@@ -143,15 +168,17 @@ impl Runner {
             Ok(Ok(output)) => output,
             Ok(Err(e)) => return Err(RunError::Io(e)),
             Err(_) => {
-                let _ = self.receipts.append(
-                    command,
-                    decision,
+                let _ = self.receipts.append(AppendOpts {
+                    command: command.into(),
+                    decision: evaluation.decision,
+                    rule_id: evaluation.rule_id.clone(),
+                    reason: Some(format!("timed out after {}s", self.timeout_secs)),
                     approved,
-                    false,
-                    None,
-                    None,
-                    Some(format!("timed out after {}s", self.timeout_secs)),
-                )?;
+                    executed: false,
+                    exit_code: None,
+                    stdout_preview: None,
+                    stderr_preview: None,
+                })?;
                 return Err(RunError::TimedOut(self.timeout_secs));
             }
         };
@@ -159,18 +186,21 @@ impl Runner {
         let stdout = String::from_utf8_lossy(&output.stdout).to_string();
         let stderr = String::from_utf8_lossy(&output.stderr).to_string();
         let exit_code = output.status.code().unwrap_or(-1);
-        let receipt = self.receipts.append(
-            command,
-            decision,
+        let receipt = self.receipts.append(AppendOpts {
+            command: command.into(),
+            decision: evaluation.decision,
+            rule_id: evaluation.rule_id.clone(),
+            reason: evaluation.reason.clone(),
             approved,
-            true,
-            Some(exit_code),
-            Some(preview(&stdout)),
-            Some(preview(&stderr)),
-        )?;
+            executed: true,
+            exit_code: Some(exit_code),
+            stdout_preview: Some(preview(&stdout)),
+            stderr_preview: Some(preview(&stderr)),
+        })?;
 
         Ok(RunResult {
             receipt,
+            evaluation,
             stdout,
             stderr,
             exit_code,

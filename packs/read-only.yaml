@@ -1,0 +1,74 @@
+# Plan-mode / read-only agent profile. Inspection only; default deny covers the rest.
+# Does not replicate full harness allowlists — thin allow for common inspect tools.
+rules:
+  - id: pack.readonly.allow-ls
+    effect: allow
+    reason: "List directory entries"
+    match:
+      argv: { binary: ls }
+
+  - id: pack.readonly.allow-cat
+    effect: allow
+    reason: "Read file contents (non-secret paths; secrets-safe still denies exfil)"
+    match:
+      argv: { binary: cat }
+
+  - id: pack.readonly.allow-head-tail
+    effect: allow
+    reason: "Preview file contents"
+    match:
+      any:
+        - argv: { binary: head }
+        - argv: { binary: tail }
+
+  - id: pack.readonly.allow-rg-grep
+    effect: allow
+    reason: "Search file contents"
+    match:
+      any:
+        - argv: { binary: rg }
+        - argv: { binary: grep }
+
+  - id: pack.readonly.deny-find-mutate
+    effect: deny
+    reason: "find -delete/-exec are not read-only"
+    match:
+      any:
+        - argv: { binary: find, args_contains: ["-delete"] }
+        - argv: { binary: find, args_contains: ["-exec"] }
+
+  - id: pack.readonly.allow-find-inspect
+    effect: allow
+    reason: "Find paths without -delete/-exec"
+    match:
+      regex: '^find(\s|$)'
+
+  - id: pack.readonly.allow-stat-wc
+    effect: allow
+    reason: "File metadata and counts"
+    match:
+      any:
+        - argv: { binary: stat }
+        - argv: { binary: wc }
+        - argv: { binary: file }
+        - argv: { binary: pwd }
+        - argv: { binary: echo }
+        - argv: { binary: whoami }
+        - argv: { binary: uname }
+        - argv: { binary: date }
+
+  - id: pack.readonly.allow-git-read
+    effect: allow
+    reason: "Read-only git inspection"
+    match:
+      any:
+        - argv: { binary: git, args_prefix: [status] }
+        - argv: { binary: git, args_prefix: [diff] }
+        - argv: { binary: git, args_prefix: [log] }
+        - argv: { binary: git, args_prefix: [show] }
+        - argv: { binary: git, args_prefix: [branch] }
+        - argv: { binary: git, args_prefix: [rev-parse] }
+        - argv: { binary: git, args_prefix: [describe] }
+        - argv: { binary: git, args_prefix: [blame] }
+        - argv: { binary: git, args_prefix: [ls-files] }
+        - capability_any: [scm.read]

@@ -1,0 +1,45 @@
+# GTFOBins-informed shell-escape / interpreter abuse. Approval, not deny —
+# agents sometimes need these legitimately; humans confirm the escalation class.
+rules:
+  - id: pack.exec.find-exec
+    effect: require_approval
+    reason: "find -exec can run arbitrary commands (GTFOBins class)"
+    match:
+      any:
+        - argv: { binary: find, args_contains: ["-exec"] }
+        - regex: 'find\s+[^\n]*-exec\b'
+
+  - id: pack.exec.xargs-mutate
+    effect: require_approval
+    reason: "xargs with mutating commands amplifies batch destructive actions"
+    match:
+      any:
+        - regex: 'xargs\s+[^\n]*\b(rm|mv|chmod|chown|kill|dd)\b'
+        - regex: 'xargs\s+-I[^\n]*\b(rm|mv|sh|bash)\b'
+
+  - id: pack.exec.tar-to-command
+    effect: require_approval
+    reason: "tar --to-command / --checkpoint-action can execute payloads"
+    match:
+      any:
+        - regex: 'tar\s+[^\n]*--to-command'
+        - regex: 'tar\s+[^\n]*--checkpoint-action'
+        - argv: { binary: tar, flags_any: ["--to-command", "--checkpoint-action"] }
+
+  - id: pack.exec.interpreter-oneliner
+    effect: require_approval
+    reason: "Interpreter one-liner can bypass argv policy (python -c / perl -e / …)"
+    match:
+      any:
+        - argv: { binary: python, flags_any: ["-c"] }
+        - argv: { binary: python3, flags_any: ["-c"] }
+        - argv: { binary: perl, flags_any: ["-e"] }
+        - argv: { binary: ruby, flags_any: ["-e"] }
+        - argv: { binary: node, flags_any: ["-e"] }
+        - regex: '(python3?|perl|ruby|node)\s+[^\n]*-(c|e)\b'
+
+  - id: pack.exec.awk-system
+    effect: require_approval
+    reason: "awk system() executes a shell command"
+    match:
+      regex: 'awk\s+[^\n]*system\s*\('
