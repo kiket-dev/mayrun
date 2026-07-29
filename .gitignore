@@ -1,0 +1,6 @@
+/target
+/Cargo.lock
+.mayrun/
+*.receipts.jsonl
+.DS_Store
+.cursor/

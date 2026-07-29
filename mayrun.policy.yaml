@@ -1,0 +1,36 @@
+# mayrun policy — regex patterns (Rust regex). First match wins: deny → require_approval → allow → default.
+
+default: deny
+
+deny:
+  - 'rm\s+-rf\s+/($|\s)'
+  - 'rm\s+-rf\s+~'
+  - 'mkfs\.'
+  - 'dd\s+if='
+  - ':\(\)\s*\{\s*:\|:\s*&\s*\}\s*;'
+  - 'curl[^|]*\|\s*(ba)?sh'
+  - 'wget[^|]*\|\s*(ba)?sh'
+  - 'git\s+push\s+.*--force'
+  - 'DROP\s+(TABLE|DATABASE)'
+  - 'kubectl\s+delete'
+  - 'terraform\s+destroy'
+
+require_approval:
+  - '^git\s+push'
+  - '^git\s+commit'
+  - 'terraform\s+apply'
+  - 'npm\s+publish'
+  - 'cargo\s+publish'
+  - 'docker\s+push'
+  - 'kubectl\s+apply'
+
+allow:
+  - '^git\s+(status|diff|log|show|branch|rev-parse|describe)(\s|$)'
+  - '^cargo\s+(check|test|clippy|fmt|build|doc)(\s|$)'
+  - '^pnpm\s+(test|lint|check|build|typecheck)(\s|$)'
+  - '^npm\s+(test|run\s+test|run\s+lint|run\s+build)(\s|$)'
+  - '^(ls|pwd|echo|cat|head|tail|rg|grep|find|wc|date|whoami|uname)(\s|$)'
+  - '^mayrun\s+(check|status|init)(\s|$)'
+
+# Optional: max shell runs per mayrun process (MCP session / CLI process)
+# max_runs_per_session: 100
