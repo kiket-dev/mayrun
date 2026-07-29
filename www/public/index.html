@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>mayrun — agents don’t run dangerous commands until mayrun says they may</title>
+    <meta
+      name="description"
+      content="Policy gate for coding-agent side effects. Evaluate shell commands against YAML policy, execute only when allowed, append hash-chained receipts."
+    />
+    <link rel="canonical" href="https://mayrun.dev/" />
+    <meta property="og:title" content="mayrun" />
+    <meta
+      property="og:description"
+      content="Agents don’t run dangerous commands until mayrun says they may."
+    />
+    <meta property="og:url" content="https://mayrun.dev/" />
+    <meta property="og:type" content="website" />
+    <meta name="theme-color" content="#E9EDF2" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Source+Sans+3:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Syne:wght@600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <a class="skip" href="#main">Skip to content</a>
+
+    <header class="top">
+      <a class="mark" href="/">mayrun</a>
+      <nav class="top-nav" aria-label="Primary">
+        <a href="#install">Install</a>
+        <a href="#how">How it works</a>
+        <a href="https://github.com/kiket-dev/mayrun">GitHub</a>
+      </nav>
+    </header>
+
+    <main id="main">
+      <section class="hero" aria-labelledby="hero-brand">
+        <p class="eyebrow">Policy gate for agent side effects</p>
+        <h1 id="hero-brand">mayrun</h1>
+        <p class="lede">
+          Agents don’t run dangerous commands until mayrun says they may.
+        </p>
+        <div class="cta">
+          <a class="btn btn-primary" href="#install">Install</a>
+          <a
+            class="btn btn-ghost"
+            href="https://github.com/kiket-dev/mayrun"
+            >GitHub</a
+          >
+        </div>
+      </section>
+
+      <section class="verdict" aria-label="Example decisions">
+        <div class="verdict-plane">
+          <div class="verdict-chrome">
+            <span class="dot" aria-hidden="true"></span>
+            <span class="dot" aria-hidden="true"></span>
+            <span class="dot" aria-hidden="true"></span>
+            <span class="verdict-title">mayrun check · run</span>
+          </div>
+          <ol class="ledger">
+            <li class="line line-deny" style="--i: 0">
+              <code class="prompt">$</code>
+              <code class="cmd">mayrun check 'rm -rf /'</code>
+              <span class="stamp stamp-deny">Deny</span>
+              <span class="meta">dangerous-defaults · rm-rf</span>
+            </li>
+            <li class="line line-approve" style="--i: 1">
+              <code class="prompt">$</code>
+              <code class="cmd">mayrun run 'git push'</code>
+              <span class="stamp stamp-approve">Require approval</span>
+              <span class="meta">git-safe · push</span>
+            </li>
+            <li class="line line-allow" style="--i: 2">
+              <code class="prompt">$</code>
+              <code class="cmd">mayrun run 'cargo test'</code>
+              <span class="stamp stamp-allow">Allow</span>
+              <span class="meta">rust-dev · cargo</span>
+            </li>
+          </ol>
+        </div>
+      </section>
+
+      <section class="section" id="how" aria-labelledby="how-title">
+        <h2 id="how-title">How it works</h2>
+        <p class="section-lede">
+          Local-first choke point on the write path — MCP or CLI — not another
+          dashboard that watches after the damage.
+        </p>
+        <ul class="steps">
+          <li>
+            <strong>Policy</strong>
+            <span
+              >Repo YAML with packs and rules. Deny, require approval, or
+              allow — deterministic only.</span
+            >
+          </li>
+          <li>
+            <strong>Gate</strong>
+            <span
+              >Agent calls <code>mayrun_run</code> / CLI instead of raw shell.
+              Overlap with host permissions is defense in depth.</span
+            >
+          </li>
+          <li>
+            <strong>Receipt</strong>
+            <span
+              >Hash-chained JSONL: decision, rule id, reason. Free locally; CI
+              enforcement is the Pro cliff later.</span
+            >
+          </li>
+        </ul>
+      </section>
+
+      <section class="section" id="install" aria-labelledby="install-title">
+        <h2 id="install-title">Install</h2>
+        <p class="section-lede">
+          Single Rust binary. Works with Cursor and any MCP stdio host.
+        </p>
+
+        <div class="install-block">
+          <div class="install-label">
+            <span>From source</span>
+            <button
+              type="button"
+              class="copy"
+              data-copy="cargo install --git https://github.com/kiket-dev/mayrun --locked"
+            >
+              Copy
+            </button>
+          </div>
+          <pre><code>cargo install --git https://github.com/kiket-dev/mayrun --locked</code></pre>
+        </div>
+
+        <div class="install-block">
+          <div class="install-label">
+            <span>Init + smoke</span>
+            <button
+              type="button"
+              class="copy"
+              data-copy="mayrun init
+mayrun check 'rm -rf /'
+mayrun run 'git status'"
+            >
+              Copy
+            </button>
+          </div>
+          <pre><code>mayrun init
+mayrun check 'rm -rf /'      # Deny
+mayrun run 'git status'      # Allow → execute</code></pre>
+        </div>
+
+        <div class="install-block">
+          <div class="install-label">
+            <span>Cursor MCP</span>
+            <button
+              type="button"
+              class="copy"
+              data-copy='{
+  "mcpServers": {
+    "mayrun": {
+      "command": "mayrun",
+      "args": ["mcp"]
+    }
+  }
+}'
+            >
+              Copy
+            </button>
+          </div>
+          <pre><code>{
+  "mcpServers": {
+    "mayrun": {
+      "command": "mayrun",
+      "args": ["mcp"]
+    }
+  }
+}</code></pre>
+        </div>
+
+        <p class="more">
+          Full policy language and packs:
+          <a href="https://github.com/kiket-dev/mayrun/blob/main/docs/policy.md"
+            >docs/policy.md</a
+          >
+          ·
+          <a href="https://github.com/kiket-dev/mayrun/blob/main/docs/install.md"
+            >docs/install.md</a
+          >
+        </p>
+      </section>
+
+      <section class="section pricing" id="pricing" aria-labelledby="pricing-title">
+        <h2 id="pricing-title">Free now</h2>
+        <p class="section-lede">
+          Local MCP, CLI, packs, and receipts are free. Paid CI gate that fails
+          PRs on policy violations comes next — pricing here when it ships.
+        </p>
+      </section>
+    </main>
+
+    <footer class="foot">
+      <p>
+        <span class="mark">mayrun</span>
+        · MIT ·
+        <a href="https://github.com/kiket-dev/mayrun">kiket-dev/mayrun</a>
+      </p>
+    </footer>
+
+    <script src="/site.js" defer></script>
+  </body>
+</html>

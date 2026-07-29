@@ -3,3 +3,6 @@
 *.receipts.jsonl
 .DS_Store
 .cursor/
+www/.wrangler/
+www/node_modules/
+.wrangler/

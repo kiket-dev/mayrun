@@ -4,7 +4,7 @@
 
 mayrun is a **policy gate for coding-agent side effects**: evaluate a shell command against a YAML policy (allow / deny / require approval), execute only when allowed, and append a **hash-chained receipt**.
 
-- Site: [https://mayrun.dev](https://mayrun.dev) (registering)
+- Site: [https://mayrun.dev](https://mayrun.dev) — source [`www/`](www/), setup [docs/site.md](docs/site.md)
 - Repo: [kiket-dev/mayrun](https://github.com/kiket-dev/mayrun)
 - Stack: Rust · MCP stdio · CLI
 - Sibling: [attestack](https://github.com/kiket-dev/attestack) (proof of AI work). mayrun is the **runtime gate**; Attestack is the optional evidence layer later.
@@ -39,15 +39,39 @@ Run `mayrun init` in the workspace so `mayrun.policy.yaml` exists. Tools:
 
 | Tool | Purpose |
 | --- | --- |
-| `mayrun_check` | Decision only |
+| `mayrun_check` | Decision + rule_id / reason / capabilities |
 | `mayrun_run` | Decision + execute (`approved=true` after human OK) |
 | `mayrun_status` | Policy + recent receipts |
+| `mayrun_policy_suggest` | Draft YAML from intent (proposal only) |
+| `mayrun_policy_tighten` | Propose rules from receipts (proposal only) |
 
 ## Policy
 
-See [examples/policy.yaml](examples/policy.yaml). Order: **deny → require_approval → allow → default** (default is deny). Patterns are Rust regexes.
+See [docs/policy.md](docs/policy.md) and [examples/policy.yaml](examples/policy.yaml).
+
+- Compose **packs** (`dangerous-defaults`, `secrets-safe`, `exec-escapes`, `git-safe`, `rust-dev`, `read-only`, …) via `extends`
+- Structured **rules** with `id`, `effect`, `match` (regex / argv / capabilities), `reason`
+- Order: **deny → require_approval → allow → default** (default is deny); pipelines take the **worst** stage
+- **Invariant:** only deterministic rules can Allow; AI authoring never auto-applies
+- Runs **alongside** agent permission systems — overlap is defense in depth
+
+```bash
+mayrun policy packs
+mayrun policy draft "allow local cargo and git; approve push"
+mayrun policy tighten
+```
 
 Receipts land in `.mayrun/receipts.jsonl` (gitignored locally; CI Pro later).
+
+## Testing / e2e
+
+```bash
+cargo test                          # unit + pack corpus + MCP protocol e2e
+./e2e/agents/run-opencode.sh        # opt-in real agent (needs opencode + model auth)
+./e2e/agents/run-cursor-agent.sh    # best-effort; SKIP if MCP tools not injected
+```
+
+See [e2e/agents/README.md](e2e/agents/README.md). Agent e2e is weekly/`workflow_dispatch`, not PR-blocking.
 
 ## Why this exists
 
