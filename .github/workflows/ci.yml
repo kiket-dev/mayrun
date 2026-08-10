@@ -18,7 +18,13 @@ jobs:
         run: |
           ./target/release/mayrun init --force
           ./target/release/mayrun check 'git status'
-          ./target/release/mayrun check 'rm -rf /' ; test $? -eq 3
+          # Deny exits 3; bash -e would abort on `; test $?` — capture under `if`.
+          if ./target/release/mayrun check 'rm -rf /'; then
+            echo "expected deny (exit 3), got allow" >&2
+            exit 1
+          else
+            test $? -eq 3
+          fi
           ./target/release/mayrun shell-hook --shell bash | head -n 2
           ./target/release/mayrun setup cursor | python3 -c "import sys,json; json.load(sys.stdin)"
       - name: Pack scoreboard (fail on recall regression)
