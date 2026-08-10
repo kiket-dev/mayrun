@@ -10,6 +10,8 @@ pub const PACK_NAMES: &[&str] = &[
     "ops-approve",
     "secrets-safe",
     "exec-escapes",
+    "network-exfil",
+    "mcp-safe",
     "read-only",
 ];
 
@@ -22,6 +24,8 @@ pub fn pack_yaml(name: &str) -> Option<&'static str> {
         "ops-approve" => Some(include_str!("../packs/ops-approve.yaml")),
         "secrets-safe" => Some(include_str!("../packs/secrets-safe.yaml")),
         "exec-escapes" => Some(include_str!("../packs/exec-escapes.yaml")),
+        "network-exfil" => Some(include_str!("../packs/network-exfil.yaml")),
+        "mcp-safe" => Some(include_str!("../packs/mcp-safe.yaml")),
         "read-only" => Some(include_str!("../packs/read-only.yaml")),
         _ => None,
     }
@@ -40,7 +44,10 @@ pub fn all_pack_rule_ids() -> Result<Vec<String>, PolicyError> {
 
 pub fn load_pack_rules(name: &str) -> Result<Vec<Rule>, PolicyError> {
     let yaml = pack_yaml(name).ok_or_else(|| PolicyError::UnknownPack(name.to_string()))?;
-    let doc: PolicyDocument = serde_yaml::from_str(yaml)?;
+    let doc: PolicyDocument = serde_yaml::from_str(yaml).map_err(|source| PolicyError::Yaml {
+        path: std::path::PathBuf::from(format!("pack:{name}")),
+        source,
+    })?;
     Ok(doc.rules)
 }
 

@@ -97,8 +97,11 @@ fn every_pack_rule_id_has_corpus_entry() {
         .collect();
 
     let ids = packs::all_pack_rule_ids().expect("load pack rule ids");
+    // MCP-only rules are covered by policy/mcp_proxy tests + mcp_corpus below — they
+    // never match shell `evaluate`, so they cannot appear in the shell corpus.
     let missing: Vec<_> = ids
         .iter()
+        .filter(|id| !id.starts_with("pack.mcp."))
         .filter(|id| !covered.contains(id.as_str()))
         .cloned()
         .collect();
@@ -107,4 +110,42 @@ fn every_pack_rule_id_has_corpus_entry() {
         "pack rule IDs missing from corpus.yaml rule_prefix coverage:\n  {}",
         missing.join("\n  ")
     );
+}
+
+#[test]
+fn mcp_safe_pack_rules_fire_on_tool_calls() {
+    use mayrun::policy::McpCall;
+    use serde_json::json;
+
+    let policy = policy_for(&["mcp-safe".into()]);
+    let cases: &[(&str, &str, Decision)] = &[
+        ("write_file", "pack.mcp.deny-write-sensitive", Decision::Deny),
+        ("delete_file", "pack.mcp.deny-delete", Decision::Deny),
+        (
+            "run_terminal",
+            "pack.mcp.approve-shell-tools",
+            Decision::RequireApproval,
+        ),
+        ("write_file", "pack.mcp.approve-write", Decision::RequireApproval),
+        ("read_file", "pack.mcp.allow-read", Decision::Allow),
+    ];
+    // First write_file uses sensitive path; second uses workspace path for approve-write.
+    let args_for = |tool: &str, rule: &str| {
+        if rule == "pack.mcp.deny-write-sensitive" {
+            json!({ "path": "/etc/passwd" })
+        } else if tool == "write_file" {
+            json!({ "path": "src/main.rs" })
+        } else {
+            json!({ "path": "x" })
+        }
+    };
+    for (tool, rule_id, expect) in cases {
+        let ev = policy.evaluate_mcp(&McpCall {
+            server: "filesystem".into(),
+            tool: (*tool).into(),
+            arguments: args_for(tool, rule_id),
+        });
+        assert_eq!(ev.decision, *expect, "tool={tool} rule={rule_id}");
+        assert_eq!(ev.rule_id.as_deref(), Some(*rule_id), "tool={tool}");
+    }
 }

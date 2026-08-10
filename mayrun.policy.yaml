@@ -9,6 +9,7 @@ extends:
   - pack: dangerous-defaults
   - pack: secrets-safe
   - pack: exec-escapes
+  - pack: network-exfil
   - pack: git-safe
   - pack: rust-dev
   - pack: ops-approve
@@ -24,3 +25,5 @@ extends:
 # Legacy flat lists still work alongside rules:
 # deny:
 #   - 'custom\\s+danger'
+#
+# For plan-mode agents, prefer extends: [dangerous-defaults, secrets-safe, read-only]

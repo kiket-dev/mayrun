@@ -1,6 +1,6 @@
 //! Policy loading and evaluation for mayrun.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -14,15 +14,29 @@ use crate::packs;
 
 #[derive(Debug, Error)]
 pub enum PolicyError {
-    #[error("policy file not found: {0}")]
+    #[error(
+        "policy file not found: {0}\n  fix: run `mayrun init` (or `mayrun init --detect`) in the project root, or pass --policy <path>"
+    )]
     NotFound(PathBuf),
-    #[error("failed to read policy: {0}")]
-    Io(#[from] std::io::Error),
-    #[error("invalid policy YAML: {0}")]
-    Yaml(#[from] serde_yaml::Error),
+    #[error("failed to read policy {path}: {source}")]
+    Io {
+        path: PathBuf,
+        #[source]
+        source: std::io::Error,
+    },
+    #[error(
+        "invalid policy YAML at {path}: {source}\n  fix: check indentation and keys; see docs/policy.md and `mayrun policy packs`"
+    )]
+    Yaml {
+        path: PathBuf,
+        #[source]
+        source: serde_yaml::Error,
+    },
     #[error("invalid regex in policy: {0}")]
     Regex(#[from] regex::Error),
-    #[error("unknown pack: {0}")]
+    #[error(
+        "unknown pack in extends: `{0}`\n  fix: use a built-in name from `mayrun policy packs` (e.g. dangerous-defaults, git-safe)"
+    )]
     UnknownPack(String),
     #[error("unknown capability: {0}")]
     UnknownCapability(String),
@@ -138,6 +152,50 @@ pub enum Matcher {
         #[serde(rename = "capability_any")]
         capability_any: Vec<String>,
     },
+    /// MCP tool call matcher (`mcp.server` / `mcp.tool` / arg key globs).
+    Mcp {
+        mcp: McpMatcher,
+    },
+}
+
+/// Match an MCP `tools/call` by server name, tool name, and/or argument globs.
+///
+/// All specified fields must match (AND). Omitted fields are wildcards.
+/// Globs use `*` / `?` (via the `glob` crate). Arg values are stringified.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct McpMatcher {
+    /// Glob for MCP server name (policy `--server-name` / proxy label).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub server: Option<String>,
+    /// Glob for tool name (e.g. `write_file`, `run_*`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tool: Option<String>,
+    /// Arg key → value glob. Each listed key must exist and match.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub args: BTreeMap<String, String>,
+}
+
+/// A proposed MCP tool invocation for policy evaluation.
+#[derive(Debug, Clone)]
+pub struct McpCall {
+    pub server: String,
+    pub tool: String,
+    pub arguments: serde_json::Value,
+}
+
+impl McpCall {
+    /// Synthetic command string used in receipts and optional regex matchers.
+    pub fn synthetic_command(&self) -> String {
+        let args = match &self.arguments {
+            serde_json::Value::Null => String::new(),
+            other => other.to_string(),
+        };
+        if args.is_empty() {
+            format!("mcp:{}/{}", self.server, self.tool)
+        } else {
+            format!("mcp:{}/{} {}", self.server, self.tool, args)
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -145,6 +203,14 @@ enum CompiledMatcher {
     Regex(Regex),
     Argv(ArgvMatcher),
     Capability(Vec<Capability>),
+    Mcp(CompiledMcpMatcher),
+}
+
+#[derive(Debug, Clone)]
+struct CompiledMcpMatcher {
+    server: Option<glob::Pattern>,
+    tool: Option<glob::Pattern>,
+    args: Vec<(String, glob::Pattern)>,
 }
 
 #[derive(Debug, Clone)]
@@ -198,6 +264,7 @@ impl CompiledPolicy {
             let caps = infer_capabilities(&parsed);
             union_caps.extend(caps.iter().copied());
             // Regex matchers still see the full command; argv/capability see this stage.
+            // MCP matchers never match shell commands.
             let stage_ev = self.evaluate_one(command, &parsed, &caps);
             worst = Some(match worst {
                 None => stage_ev,
@@ -213,6 +280,34 @@ impl CompiledPolicy {
         });
         ev.capabilities = union_caps.iter().map(|c| c.as_str().to_string()).collect();
         ev
+    }
+
+    /// Evaluate an MCP `tools/call` (deny → require_approval → allow → default).
+    ///
+    /// MCP matchers apply; regex may match the synthetic `mcp:server/tool …` string.
+    /// Shell argv/capability matchers do not match MCP calls.
+    pub fn evaluate_mcp(&self, call: &McpCall) -> Evaluation {
+        let synthetic = call.synthetic_command();
+        for effect in [Decision::Deny, Decision::RequireApproval, Decision::Allow] {
+            if let Some(rule) = self
+                .rules
+                .iter()
+                .find(|r| r.effect == effect && rule_matches_mcp(r, call, &synthetic))
+            {
+                return Evaluation {
+                    decision: effect,
+                    rule_id: Some(rule.id.clone()),
+                    reason: rule.reason.clone(),
+                    capabilities: vec!["mcp.tool".into()],
+                };
+            }
+        }
+        Evaluation {
+            decision: self.raw.default,
+            rule_id: None,
+            reason: Some(format!("default:{:?}", self.raw.default).to_ascii_lowercase()),
+            capabilities: vec!["mcp.tool".into()],
+        }
     }
 
     fn evaluate_one(
@@ -334,6 +429,34 @@ fn compile_matcher(m: &Matcher, rule_id: &str) -> Result<CompiledMatcher, Policy
             }
             Ok(CompiledMatcher::Capability(caps))
         }
+        Matcher::Mcp { mcp } => {
+            if mcp.server.is_none() && mcp.tool.is_none() && mcp.args.is_empty() {
+                return Err(PolicyError::InvalidMatch(rule_id.to_string()));
+            }
+            let server = mcp
+                .server
+                .as_deref()
+                .map(glob::Pattern::new)
+                .transpose()
+                .map_err(|_| PolicyError::InvalidMatch(rule_id.to_string()))?;
+            let tool = mcp
+                .tool
+                .as_deref()
+                .map(glob::Pattern::new)
+                .transpose()
+                .map_err(|_| PolicyError::InvalidMatch(rule_id.to_string()))?;
+            let mut args = Vec::new();
+            for (key, pat) in &mcp.args {
+                let compiled = glob::Pattern::new(pat)
+                    .map_err(|_| PolicyError::InvalidMatch(rule_id.to_string()))?;
+                args.push((key.clone(), compiled));
+            }
+            Ok(CompiledMatcher::Mcp(CompiledMcpMatcher {
+                server,
+                tool,
+                args,
+            }))
+        }
     }
 }
 
@@ -376,6 +499,57 @@ fn matcher_matches(
         CompiledMatcher::Regex(re) => re.is_match(command.trim()),
         CompiledMatcher::Argv(argv) => argv.matches(parsed),
         CompiledMatcher::Capability(need) => need.iter().any(|c| caps.contains(c)),
+        // MCP matchers never fire on shell evaluation.
+        CompiledMatcher::Mcp(_) => false,
+    }
+}
+
+fn rule_matches_mcp(rule: &CompiledRule, call: &McpCall, synthetic: &str) -> bool {
+    rule.matchers
+        .iter()
+        .any(|m| matcher_matches_mcp(m, call, synthetic))
+}
+
+fn matcher_matches_mcp(m: &CompiledMatcher, call: &McpCall, synthetic: &str) -> bool {
+    match m {
+        CompiledMatcher::Mcp(mcp) => mcp_matcher_matches(mcp, call),
+        // Optional escape hatch: regex against synthetic mcp:server/tool …
+        CompiledMatcher::Regex(re) => re.is_match(synthetic),
+        CompiledMatcher::Argv(_) | CompiledMatcher::Capability(_) => false,
+    }
+}
+
+fn mcp_matcher_matches(m: &CompiledMcpMatcher, call: &McpCall) -> bool {
+    if let Some(server) = &m.server {
+        if !server.matches(&call.server) {
+            return false;
+        }
+    }
+    if let Some(tool) = &m.tool {
+        if !tool.matches(&call.tool) {
+            return false;
+        }
+    }
+    for (key, pat) in &m.args {
+        let Some(val) = arg_value_as_str(&call.arguments, key) else {
+            return false;
+        };
+        if !pat.matches(&val) {
+            return false;
+        }
+    }
+    true
+}
+
+fn arg_value_as_str(arguments: &serde_json::Value, key: &str) -> Option<String> {
+    let obj = arguments.as_object()?;
+    let v = obj.get(key)?;
+    match v {
+        serde_json::Value::String(s) => Some(s.clone()),
+        serde_json::Value::Number(n) => Some(n.to_string()),
+        serde_json::Value::Bool(b) => Some(b.to_string()),
+        serde_json::Value::Null => Some(String::new()),
+        other => Some(other.to_string()),
     }
 }
 
@@ -395,8 +569,15 @@ pub fn load_policy(path: &Path) -> Result<CompiledPolicy, PolicyError> {
     if !path.is_file() {
         return Err(PolicyError::NotFound(path.to_path_buf()));
     }
-    let text = fs::read_to_string(path)?;
-    let policy: PolicyDocument = serde_yaml::from_str(&text)?;
+    let text = fs::read_to_string(path).map_err(|source| PolicyError::Io {
+        path: path.to_path_buf(),
+        source,
+    })?;
+    let policy: PolicyDocument =
+        serde_yaml::from_str(&text).map_err(|source| PolicyError::Yaml {
+            path: path.to_path_buf(),
+            source,
+        })?;
     CompiledPolicy::compile(policy)
 }
 
@@ -551,5 +732,87 @@ extends:
             "expected net.egress in {:?}",
             ev.capabilities
         );
+    }
+
+    #[test]
+    fn mcp_tool_matcher_deny_and_allow() {
+        let p = policy_from_yaml(
+            r#"
+default: deny
+rules:
+  - id: mcp.deny-write-etc
+    effect: deny
+    reason: "write outside workspace"
+    match:
+      mcp:
+        tool: write_file
+        args:
+          path: "/etc/**"
+  - id: mcp.approve-shell
+    effect: require_approval
+    reason: "terminal via MCP"
+    match:
+      mcp:
+        tool: "run_*"
+  - id: mcp.allow-read
+    effect: allow
+    reason: "benign read"
+    match:
+      mcp:
+        server: filesystem
+        tool: read_file
+"#,
+        );
+        let deny = p.evaluate_mcp(&McpCall {
+            server: "filesystem".into(),
+            tool: "write_file".into(),
+            arguments: serde_json::json!({ "path": "/etc/passwd" }),
+        });
+        assert_eq!(deny.decision, Decision::Deny);
+        assert_eq!(deny.rule_id.as_deref(), Some("mcp.deny-write-etc"));
+
+        let allow = p.evaluate_mcp(&McpCall {
+            server: "filesystem".into(),
+            tool: "read_file".into(),
+            arguments: serde_json::json!({ "path": "README.md" }),
+        });
+        assert_eq!(allow.decision, Decision::Allow);
+
+        let appr = p.evaluate_mcp(&McpCall {
+            server: "shell".into(),
+            tool: "run_terminal".into(),
+            arguments: serde_json::json!({}),
+        });
+        assert_eq!(appr.decision, Decision::RequireApproval);
+
+        // Shell evaluation ignores MCP matchers.
+        assert_eq!(p.evaluate("write_file /etc/passwd"), Decision::Deny);
+    }
+
+    #[test]
+    fn mcp_deny_beats_allow() {
+        let p = policy_from_yaml(
+            r#"
+default: deny
+rules:
+  - id: allow-all-tools
+    effect: allow
+    match:
+      mcp:
+        tool: "*"
+  - id: deny-delete
+    effect: deny
+    match:
+      mcp:
+        tool: delete_file
+"#,
+        );
+        let ev = p.evaluate_mcp(&McpCall {
+            server: "fs".into(),
+            tool: "delete_file".into(),
+            arguments: serde_json::json!({}),
+        });
+        assert_eq!(ev.decision, Decision::Deny);
+        assert_eq!(ev.rule_id.as_deref(), Some("deny-delete"));
     }
 }

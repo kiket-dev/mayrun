@@ -34,6 +34,9 @@ pub struct Receipt {
     pub exit_code: Option<i32>,
     pub stdout_preview: Option<String>,
     pub stderr_preview: Option<String>,
+    /// Sandbox backend/profile summary when executed under `--sandbox`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sandbox: Option<String>,
     pub prev_hash: String,
     pub hash: String,
 }
@@ -48,6 +51,7 @@ pub struct AppendOpts {
     pub exit_code: Option<i32>,
     pub stdout_preview: Option<String>,
     pub stderr_preview: Option<String>,
+    pub sandbox: Option<String>,
 }
 
 pub struct ReceiptLog {
@@ -76,18 +80,26 @@ impl ReceiptLog {
             .map(|d| d.as_millis())
             .unwrap_or(0);
         let prev_hash = self.last_hash.clone();
+        let command = crate::redact::redact_command(&opts.command);
+        let stdout_preview = opts
+            .stdout_preview
+            .map(|s| crate::redact::redact_command(&s));
+        let stderr_preview = opts
+            .stderr_preview
+            .map(|s| crate::redact::redact_command(&s));
         let mut receipt = Receipt {
             id,
             ts_unix_ms,
-            command: opts.command,
+            command,
             decision: opts.decision,
             rule_id: opts.rule_id,
             reason: opts.reason,
             approved: opts.approved,
             executed: opts.executed,
             exit_code: opts.exit_code,
-            stdout_preview: opts.stdout_preview,
-            stderr_preview: opts.stderr_preview,
+            stdout_preview,
+            stderr_preview,
+            sandbox: opts.sandbox,
             prev_hash: prev_hash.clone(),
             hash: String::new(),
         };
@@ -195,6 +207,7 @@ mod tests {
                 exit_code: Some(0),
                 stdout_preview: None,
                 stderr_preview: None,
+                sandbox: None,
             })
             .unwrap();
         let r2 = log
@@ -208,6 +221,7 @@ mod tests {
                 exit_code: Some(0),
                 stdout_preview: None,
                 stderr_preview: None,
+                sandbox: None,
             })
             .unwrap();
         assert_eq!(r2.prev_hash, r1.hash);

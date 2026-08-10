@@ -1,0 +1,135 @@
+name: mayrun-ci
+description: Validate mayrun policy (Free) and enforce receipt evidence (Pro license).
+author: kiket-dev
+branding:
+  icon: shield
+  color: blue
+
+inputs:
+  policy:
+    description: Path to mayrun.policy.yaml
+    required: false
+    default: mayrun.policy.yaml
+  receipts:
+    description: Path to receipts JSONL
+    required: false
+    default: .mayrun/receipts.jsonl
+  corpus:
+    description: Optional corpus for advisory scoreboard (empty to skip)
+    required: false
+    default: tests/corpus.yaml
+  license:
+    description: Pro license key (prefer secrets.MAYRUN_LICENSE)
+    required: false
+    default: ""
+  pro:
+    description: Require Pro receipt gate (needs license)
+    required: false
+    default: "false"
+  mayrun-version:
+    description: Git ref/tag to install mayrun from (cargo install --git)
+    required: false
+    default: main
+  github-annotations:
+    description: Emit GitHub Actions annotation commands
+    required: false
+    default: "true"
+
+outputs:
+  tier:
+    description: free or pro
+    value: ${{ steps.run.outputs.tier }}
+  ok:
+    description: whether the gate passed
+    value: ${{ steps.run.outputs.ok }}
+
+runs:
+  using: composite
+  steps:
+    - name: Install Rust toolchain
+      # Pin SHA (master); pass toolchain explicitly when not using @stable/@nightly refs.
+      uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772
+      with:
+        toolchain: stable
+
+    - name: Cache cargo registry
+      uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+        key: mayrun-ci-cargo-${{ runner.os }}-${{ inputs.mayrun-version }}
+
+    - name: Install mayrun
+      shell: bash
+      env:
+        MAYRUN_VERSION: ${{ inputs.mayrun-version }}
+      run: |
+        set -euo pipefail
+        # Validate ref: only allow safe git ref characters (no shell metacharacters).
+        if [[ ! "$MAYRUN_VERSION" =~ ^[A-Za-z0-9._/-]+$ ]]; then
+          echo "::error::invalid mayrun-version (allowed: letters, digits, . _ / -)"
+          exit 1
+        fi
+        if command -v mayrun >/dev/null 2>&1; then
+          echo "mayrun already on PATH: $(mayrun --version)"
+        else
+          cargo install --git https://github.com/kiket-dev/mayrun --locked --rev "$MAYRUN_VERSION" mayrun
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+        fi
+        mayrun --version
+
+    - name: Run mayrun ci
+      id: run
+      shell: bash
+      env:
+        MAYRUN_LICENSE: ${{ inputs.license }}
+        GITHUB_REPOSITORY: ${{ github.repository }}
+        MAYRUN_POLICY: ${{ inputs.policy }}
+        MAYRUN_RECEIPTS: ${{ inputs.receipts }}
+        MAYRUN_CORPUS: ${{ inputs.corpus }}
+        MAYRUN_PRO: ${{ inputs.pro }}
+        MAYRUN_GITHUB_ANNOTATIONS: ${{ inputs.github-annotations }}
+      run: |
+        set -euo pipefail
+        # Paths come from env (not inline ${{ }}) to avoid workflow template injection.
+        ARGS=(ci --policy "$MAYRUN_POLICY" --receipts "$MAYRUN_RECEIPTS" --json)
+        if [[ -n "$MAYRUN_CORPUS" && -f "$MAYRUN_CORPUS" ]]; then
+          ARGS+=(--corpus "$MAYRUN_CORPUS")
+        fi
+        if [[ "$MAYRUN_PRO" == "true" ]]; then
+          ARGS+=(--pro)
+        fi
+        if [[ "$MAYRUN_GITHUB_ANNOTATIONS" == "true" ]]; then
+          ARGS+=(--github-annotations)
+        fi
+
+        OUT="$(mktemp)"
+        set +e
+        mayrun "${ARGS[@]}" | tee "$OUT"
+        set -e
+
+        python3 - <<'PY' "$OUT"
+        import json, os, sys
+        text = open(sys.argv[1], encoding="utf-8").read()
+        decoder = json.JSONDecoder()
+        report = None
+        for i, ch in enumerate(text):
+            if ch != "{":
+                continue
+            try:
+                obj, _ = decoder.raw_decode(text[i:])
+            except Exception:
+                continue
+            if isinstance(obj, dict) and "tier" in obj and "ok" in obj:
+                report = obj
+        if report is None:
+            print("::error::mayrun ci produced no JSON report")
+            sys.exit(1)
+        tier = report.get("tier", "free")
+        ok = "true" if report.get("ok") else "false"
+        with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as f:
+            f.write(f"tier={tier}\n")
+            f.write(f"ok={ok}\n")
+        sys.exit(0 if report.get("ok") else 1)
+        PY

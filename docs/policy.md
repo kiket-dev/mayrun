@@ -28,6 +28,8 @@ extends:
 | --- | --- | --- |
 | `dangerous-defaults` | Destructive shell / disk / force-push / sudo / rc writes / curl\|sh | mostly **deny** |
 | `secrets-safe` | Credential path exfil; project `.env*` | **deny** exfil / **require_approval** `.env` |
+| `network-exfil` | IMDS `169.254.169.254`, pipe-to-shell, obvious secret egress | **deny** |
+| `mcp-safe` | MCP tool names/args for `mcp-proxy` (deny delete / sensitive write; approve shell tools; allow read) | mixed |
 | `exec-escapes` | GTFOBins-style escapes (`find -exec`, `xargs`, interpreter `-c`/`-e`, …) | **require_approval** |
 | `git-safe` | Git read allow; push / commit / `reset --hard` | **allow** read / **require_approval** write |
 | `rust-dev` | Local cargo + unix read utils | **allow** / **require_approval** publish/install |
@@ -57,8 +59,25 @@ Matchers (OR via `any:`):
 | `regex` | `{ regex: 'rm\\s+-rf' }` |
 | `argv` | `{ argv: { binary: git, args_prefix: [push], flags_any: ["--force"] } }` |
 | `capability_any` | `{ capability_any: [scm.publish, infra.destroy] }` |
+| `mcp` | `{ mcp: { server: filesystem, tool: write_file, args: { path: "/etc*" } } }` |
 
 `argv` matching peels common wrappers (`bash -c`, `env`, `sudo`, …) before comparing.
+
+**MCP matchers** (`mcp.server` / `mcp.tool` / arg key globs) apply to `mayrun mcp-proxy` tool calls only — they never match shell `mayrun run` / `check`. Shell argv/capability matchers never match MCP calls. Regex may match the synthetic `mcp:server/tool …` string. Pack: `mcp-safe`.
+
+## MCP proxy vs MCP server
+
+| Command | Role |
+| --- | --- |
+| `mayrun mcp` | mayrun **is** the MCP server (tools: `mayrun_run`, `mayrun_check`, …) |
+| `mayrun mcp-proxy -- <upstream…>` | mayrun sits **in front of** another MCP; intercepts `tools/call`, evaluates policy, writes receipts |
+
+```bash
+mayrun mcp-proxy --policy mayrun.policy.yaml --server-name filesystem -- \
+  npx -y @modelcontextprotocol/server-filesystem /tmp
+```
+
+Approval for `require_approval`: TTY (`/dev/tty`) or `--approve-file` (tool name per line). Fail closed.
 
 ## Capabilities
 
@@ -96,3 +115,24 @@ CLI draft uses deterministic pack selection from keywords. For richer AI drafts,
 auto-apply — human writes `mayrun.policy.yaml`.
 
 MCP: `mayrun_policy_suggest`, `mayrun_policy_tighten` (proposal only).
+
+## Scoreboard
+
+```bash
+mayrun scoreboard --corpus tests/corpus.yaml
+mayrun scoreboard --corpus corpus/pins/network-exfil.yaml --json
+```
+
+Recall on unsafe cases must stay at 100% in CI (see `.github/workflows/ci.yml`). Tighten packs from misses with stable `id` / `reason` — never weaken `dangerous-defaults` to chase green.
+
+## Receipts and redaction
+
+Stored `command` (and previews) are redacted for bearer tokens, `*SECRET*=` / `API_KEY=` assignments, and private-key blocks. Residual risk remains for novel secret formats — treat shared receipt logs as sensitive.
+
+## Sandbox
+
+`mayrun run '<cmd>' --sandbox` (soft) or `--sandbox=required` runs Allow/approved commands inside bubblewrap (Linux) or `sandbox-exec` (macOS). Deny never sandboxes. Network is deny-by-default unless capabilities include `net.egress`. Workspace is writable; secret home paths are best-effort denied for read. Defense in depth under policy — not a hosted sandbox platform.
+
+## Metrics
+
+`mayrun metrics [--since 7d] [--json]` summarizes local receipts only (decision mix, top `rule_id`s, approval friction, sandbox rate). Offline — not agent APM; no network telemetry.

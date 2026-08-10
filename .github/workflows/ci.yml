@@ -19,3 +19,10 @@ jobs:
           ./target/release/mayrun init --force
           ./target/release/mayrun check 'git status'
           ./target/release/mayrun check 'rm -rf /' ; test $? -eq 3
+          ./target/release/mayrun shell-hook --shell bash | head -n 2
+          ./target/release/mayrun setup cursor | python3 -c "import sys,json; json.load(sys.stdin)"
+      - name: Pack scoreboard (fail on recall regression)
+        run: |
+          ./target/release/mayrun scoreboard --corpus tests/corpus.yaml --min-recall 1.0
+          ./target/release/mayrun scoreboard --corpus corpus/pins/network-exfil.yaml --min-recall 1.0
+

@@ -16,6 +16,7 @@ use tokio::sync::Mutex;
 use crate::policy::{Decision, find_policy_path, load_policy};
 use crate::receipts::{ReceiptLog, default_receipt_path};
 use crate::shell::Runner;
+use crate::ux;
 
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
 pub struct RunArgs {
@@ -117,6 +118,11 @@ impl MayrunServer {
                         "reason": reason,
                         "error": "denied by policy",
                         "command": args.command,
+                        "how_to_adjust": ux::deny_policy_adjust_hint(),
+                        "next_steps": [
+                            "Do not retry with approved=true — Deny cannot be bypassed by approval.",
+                            "Edit mayrun.policy.yaml or pack rules, then mayrun_check before retrying.",
+                        ],
                     })
                     .to_string(),
                 )]))
@@ -131,6 +137,7 @@ impl MayrunServer {
                         "error": "approval required",
                         "receipt_id": id,
                         "hint": "Ask the human to confirm, then call mayrun_run again with approved=true",
+                        "next_steps": ux::approve_mcp_next_steps(&args.command),
                         "command": args.command,
                     })
                     .to_string(),

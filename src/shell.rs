@@ -1,15 +1,16 @@
 //! Command execution under policy.
 
+use std::env;
 use std::process::Stdio;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::time::Duration;
 
 use thiserror::Error;
-use tokio::process::Command;
 use tokio::time::timeout;
 
 use crate::policy::{CompiledPolicy, Decision, Evaluation};
 use crate::receipts::{AppendOpts, Receipt, ReceiptLog};
+use crate::sandbox::{self, SandboxMode, SandboxProfile};
 
 const PREVIEW_CHARS: usize = 2_000;
 const DEFAULT_TIMEOUT_SECS: u64 = 120;
@@ -35,6 +36,8 @@ pub enum RunError {
     Receipt(#[from] crate::receipts::ReceiptError),
     #[error("command timed out after {0}s")]
     TimedOut(u64),
+    #[error("sandbox error: {0}")]
+    Sandbox(#[from] sandbox::SandboxError),
 }
 
 #[derive(Debug, Clone)]
@@ -51,6 +54,7 @@ pub struct Runner {
     receipts: ReceiptLog,
     runs: AtomicU32,
     timeout_secs: u64,
+    sandbox: SandboxMode,
 }
 
 impl Runner {
@@ -60,7 +64,13 @@ impl Runner {
             receipts,
             runs: AtomicU32::new(0),
             timeout_secs: DEFAULT_TIMEOUT_SECS,
+            sandbox: SandboxMode::Off,
         }
+    }
+
+    pub fn with_sandbox(mut self, mode: SandboxMode) -> Self {
+        self.sandbox = mode;
+        self
     }
 
     pub fn policy(&self) -> &CompiledPolicy {
@@ -94,6 +104,7 @@ impl Runner {
                     exit_code: None,
                     stdout_preview: None,
                     stderr_preview: None,
+                    sandbox: None,
                 })?;
                 return Err(RunError::BudgetExceeded { max });
             }
@@ -112,6 +123,7 @@ impl Runner {
                     exit_code: None,
                     stdout_preview: None,
                     stderr_preview: None,
+                    sandbox: None,
                 })?;
                 Err(RunError::Denied {
                     rule_id: evaluation.rule_id,
@@ -129,6 +141,7 @@ impl Runner {
                     exit_code: None,
                     stdout_preview: None,
                     stderr_preview: None,
+                    sandbox: None,
                 })?;
                 Err(RunError::ApprovalRequired {
                     id: receipt.id,
@@ -138,7 +151,8 @@ impl Runner {
             }
             Decision::Allow | Decision::RequireApproval => {
                 self.runs.fetch_add(1, Ordering::Relaxed);
-                let approved = matches!(evaluation.decision, Decision::RequireApproval) && force_approve;
+                let approved =
+                    matches!(evaluation.decision, Decision::RequireApproval) && force_approve;
                 self.execute(command, evaluation, approved).await
             }
         }
@@ -150,14 +164,26 @@ impl Runner {
         evaluation: Evaluation,
         approved: bool,
     ) -> Result<RunResult, RunError> {
-        let child = Command::new("sh")
-            .arg("-c")
-            .arg(command)
+        let workspace = env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
+        let profile = sandbox::profile_for(&workspace, &evaluation.capabilities);
+        let (mut child_cmd, applied): (_, Option<SandboxProfile>) =
+            sandbox::sandboxed_command(self.sandbox, &profile, command)?;
+        child_cmd
             .stdin(Stdio::null())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
-            .kill_on_drop(true)
-            .spawn()?;
+            .kill_on_drop(true);
+
+        let sandbox_summary = applied.as_ref().map(|p| {
+            format!(
+                "{} net={} workspace={}",
+                p.backend,
+                p.network,
+                p.workspace.display()
+            )
+        });
+
+        let child = child_cmd.spawn()?;
 
         let output = match timeout(
             Duration::from_secs(self.timeout_secs),
@@ -178,6 +204,7 @@ impl Runner {
                     exit_code: None,
                     stdout_preview: None,
                     stderr_preview: None,
+                    sandbox: sandbox_summary.clone(),
                 })?;
                 return Err(RunError::TimedOut(self.timeout_secs));
             }
@@ -196,6 +223,7 @@ impl Runner {
             exit_code: Some(exit_code),
             stdout_preview: Some(preview(&stdout)),
             stderr_preview: Some(preview(&stderr)),
+            sandbox: sandbox_summary,
         })?;
 
         Ok(RunResult {

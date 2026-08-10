@@ -9,6 +9,7 @@ extends:
   - pack: dangerous-defaults
   - pack: secrets-safe
   - pack: exec-escapes
+  - pack: network-exfil
   - pack: git-safe
   - pack: rust-dev
   - pack: ops-approve

@@ -52,5 +52,5 @@ npx wrangler@latest pages deploy public --project-name mayrun --commit-dirty=tru
 
 | Now | Later (Pro) |
 | --- | --- |
-| One-liner, install, MCP snippet | Pricing + Stripe Checkout |
-| Link to GitHub docs | Docs for `mayrun-ci` Action |
+| One-liner, install, MCP / shell-hook | Pricing + Stripe Checkout (live) |
+| Docs for `mayrun-ci` Action | Auto-provision license after payment |

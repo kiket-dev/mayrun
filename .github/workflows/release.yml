@@ -1,0 +1,97 @@
+# Publish GitHub Release artifacts on version tags (cargo-dist metadata in Cargo.toml).
+# Regenerate with `cargo dist generate` when upgrading cargo-dist for full plan/host UX.
+name: Release
+
+permissions:
+  contents: write
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            archive: tar.gz
+          - os: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-gnu
+            archive: tar.gz
+          - os: macos-13
+            target: x86_64-apple-darwin
+            archive: tar.gz
+          - os: macos-14
+            target: aarch64-apple-darwin
+            archive: tar.gz
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            archive: zip
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - name: Build
+        shell: bash
+        run: cargo build --locked --release --target ${{ matrix.target }}
+      - name: Package
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG="${GITHUB_REF_NAME}"
+          BIN=mayrun
+          EXT=""
+          if [[ "${{ matrix.os }}" == windows-latest ]]; then
+            EXT=".exe"
+          fi
+          STAGE="mayrun-${TAG}-${{ matrix.target }}"
+          mkdir -p dist/"$STAGE"
+          cp "target/${{ matrix.target }}/release/${BIN}${EXT}" dist/"$STAGE"/
+          cp README.md LICENSE dist/"$STAGE"/ 2>/dev/null || true
+          cd dist
+          if [[ "${{ matrix.archive }}" == zip ]]; then
+            7z a "${STAGE}.zip" "$STAGE"
+          else
+            tar -czf "${STAGE}.tar.gz" "$STAGE"
+          fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mayrun-${{ matrix.target }}
+          path: dist/mayrun-*
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          TAG="${GITHUB_REF_NAME}"
+          NOTES="$(cat <<EOF
+          ## mayrun ${TAG}
+
+          Local shell gate for coding agents. Install a binary below or see [docs/install.md](https://github.com/kiket-dev/mayrun/blob/main/docs/install.md).
+
+          Quick start:
+          \`\`\`bash
+          mayrun init --detect
+          eval \"\$(mayrun shell-hook)\"
+          \`\`\`
+          EOF
+          )"
+          gh release create "$TAG" artifacts/mayrun-* \
+            --title "$TAG" \
+            --notes "$NOTES"

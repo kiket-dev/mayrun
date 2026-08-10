@@ -1,0 +1,61 @@
+# MCP tool matchers for mayrun mcp-proxy. Deny risky tools; approve shell-like tools;
+# allow common read/list. Extend alongside shell packs — does not weaken dangerous-defaults.
+rules:
+  - id: pack.mcp.deny-write-sensitive
+    effect: deny
+    reason: "MCP write_file targeting sensitive system paths"
+    match:
+      any:
+        - mcp:
+            tool: write_file
+            args:
+              path: "/etc/**"
+        - mcp:
+            tool: write_file
+            args:
+              path: "/var/**"
+        - mcp:
+            tool: write_file
+            args:
+              path: "/root/**"
+        - mcp:
+            tool: write_file
+            args:
+              path: "**/.ssh/**"
+
+  - id: pack.mcp.deny-delete
+    effect: deny
+    reason: "MCP delete / remove file tools"
+    match:
+      any:
+        - mcp: { tool: delete_file }
+        - mcp: { tool: remove_file }
+        - mcp: { tool: "delete_*" }
+
+  - id: pack.mcp.approve-shell-tools
+    effect: require_approval
+    reason: "MCP tools that execute shell / terminal"
+    match:
+      any:
+        - mcp: { tool: run_terminal }
+        - mcp: { tool: "run_*" }
+        - mcp: { tool: bash }
+        - mcp: { tool: execute_command }
+        - mcp: { tool: shell }
+
+  - id: pack.mcp.approve-write
+    effect: require_approval
+    reason: "MCP write_file requires human approval"
+    match:
+      mcp: { tool: write_file }
+
+  - id: pack.mcp.allow-read
+    effect: allow
+    reason: "Benign MCP read/list tools"
+    match:
+      any:
+        - mcp: { tool: read_file }
+        - mcp: { tool: list_directory }
+        - mcp: { tool: list_dir }
+        - mcp: { tool: search_files }
+        - mcp: { tool: get_file_info }

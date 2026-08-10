@@ -1,5 +1,6 @@
 name: e2e-agents
 
+# Opt-in / weekly only — never blocks PRs.
 on:
   workflow_dispatch:
   schedule:
@@ -25,15 +26,47 @@ jobs:
       - name: Build mayrun
         run: cargo build --locked
       - name: Run opencode agent e2e
+        id: e2e
         env:
           MAYRUN_BIN: ${{ github.workspace }}/target/debug/mayrun
-          # Provide model auth via repo secrets when available.
+          # Optional model auth — SKIP path needs none of these.
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
         run: |
+          set -euo pipefail
           chmod +x e2e/agents/*.sh
-          ./e2e/agents/run-opencode.sh
+          set +e
+          ./e2e/agents/run-opencode.sh 2>&1 | tee /tmp/e2e-opencode.log
+          rc=${PIPESTATUS[0]}
+          set -e
+          if grep -q '^SKIP:' /tmp/e2e-opencode.log && [[ "$rc" -eq 0 ]]; then
+            echo "result=skip" >> "$GITHUB_OUTPUT"
+            echo "### e2e-agents: SKIP" >> "$GITHUB_STEP_SUMMARY"
+            echo 'Environment missing a dependency or model auth; not a product failure.' >> "$GITHUB_STEP_SUMMARY"
+            echo 'See e2e/agents/README.md SKIP rules.' >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          if [[ "$rc" -eq 0 ]]; then
+            echo "result=pass" >> "$GITHUB_OUTPUT"
+            echo "### e2e-agents: PASS" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          echo "result=fail" >> "$GITHUB_OUTPUT"
+          {
+            echo "### e2e-agents: FAIL"
+            echo ""
+            echo "Receipt assertions failed or the agent ran without writing mayrun receipts."
+            echo ""
+            echo "**On failure, open an issue with:**"
+            echo "- Workflow run URL"
+            echo "- Scenario id(s) from the log"
+            echo "- Uploaded \`opencode-receipts\` artifact (if present)"
+            echo "- Whether secrets (\`OPENAI_API_KEY\` / \`ANTHROPIC_API_KEY\` / \`OPENCODE_API_KEY\`) were configured"
+            echo ""
+            echo "Label suggestion: \`e2e-agents\`."
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit "$rc"
       - name: Upload receipts
         if: always()
         uses: actions/upload-artifact@v4

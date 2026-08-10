@@ -20,8 +20,12 @@ path = "src/main.rs"
 
 [dependencies]
 anyhow = "1"
+base64 = "0.22"
 clap = { version = "4", features = ["derive"] }
+ed25519-dalek = { version = "2", features = ["rand_core", "std"] }
+glob = "0.3"
 hex = "0.4"
+rand = "0.8"
 regex = "1"
 rmcp = { version = "0.16", features = [
     "server",
@@ -50,3 +54,19 @@ uuid = { version = "1", features = ["v4"] }
 
 [dev-dependencies]
 tempfile = "3"
+
+# cargo-dist — GitHub Releases on version tags (macOS/Linux; Windows best-effort).
+[package.metadata.dist]
+cargo-dist-version = "0.28.0"
+ci = ["github"]
+installers = ["shell"]
+targets = [
+  "aarch64-apple-darwin",
+  "x86_64-apple-darwin",
+  "x86_64-unknown-linux-gnu",
+  "aarch64-unknown-linux-gnu",
+  "x86_64-pc-windows-msvc",
+]
+unix-archive = ".tar.gz"
+windows-archive = ".zip"
+pr-run-mode = "plan"
