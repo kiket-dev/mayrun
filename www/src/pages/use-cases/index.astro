@@ -1,0 +1,37 @@
+---
+import BaseLayout from "../../layouts/BaseLayout.astro";
+import { getCollection } from "astro:content";
+
+const useCases = (await getCollection("useCases")).sort(
+  (a, b) => a.data.order - b.data.order,
+);
+---
+
+<BaseLayout
+  title="Use cases"
+  description="Real write-path scenarios: stop destructive shell, gate publish, secret hygiene, MCP proxy, CI evidence."
+  canonicalPath="/use-cases"
+>
+  <section class="section page-hero" aria-labelledby="uc-title">
+    <p class="eyebrow">Use cases</p>
+    <h1 id="uc-title">Where mayrun earns its keep</h1>
+    <p class="section-lede">
+      Concrete agent mishaps and team workflows — each mapped to packs and a
+      fail-closed path.
+    </p>
+    <ul class="card-grid">
+      {
+        useCases.map((uc) => (
+          <li>
+            <a class="card-link" href={`/use-cases/${uc.id}`}>
+              <h2>{uc.data.title}</h2>
+              <p>{uc.data.description}</p>
+              <p class="card-meta">{uc.data.audience}</p>
+              {uc.data.pack && <span class="chip">{uc.data.pack}</span>}
+            </a>
+          </li>
+        ))
+      }
+    </ul>
+  </section>
+</BaseLayout>

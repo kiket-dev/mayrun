@@ -1,0 +1,39 @@
+---
+import BaseLayout from "../../layouts/BaseLayout.astro";
+import { getCollection } from "astro:content";
+
+const packs = (await getCollection("packs")).sort(
+  (a, b) => a.data.order - b.data.order,
+);
+---
+
+<BaseLayout
+  title="Packs"
+  description="Composable policy packs for destructive shell, secrets, network exfil, git, Rust/Node, ops, MCP, and read-only agents."
+  canonicalPath="/packs"
+>
+  <section class="section page-hero" aria-labelledby="packs-title">
+    <p class="eyebrow">Policy packs</p>
+    <h1 id="packs-title">Compose the gate</h1>
+    <p class="section-lede">
+      Extend packs in <code>mayrun.policy.yaml</code>. Fail closed. List locally with
+      <code>mayrun policy packs</code>.
+    </p>
+    <ul class="card-grid">
+      {
+        packs.map((pack) => (
+          <li>
+            <a class="card-link" href={`/packs/${pack.id}`}>
+              <h2>
+                <code>{pack.data.packId}</code>
+              </h2>
+              <p>{pack.data.description}</p>
+              <span class="chip">{pack.data.effect}</span>
+            </a>
+          </li>
+        ))
+      }
+    </ul>
+    <p class="more"><a href="/docs/policy">Policy language</a></p>
+  </section>
+</BaseLayout>

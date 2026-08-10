@@ -4,8 +4,8 @@
 
 mayrun is a **local shell gate for coding agents**: evaluate a command against YAML policy (allow / deny / require approval), execute only when allowed, and append a **hash-chained receipt**.
 
-- **Architecture:** [docs/architecture.md](docs/architecture.md) — decide → prove → confine
-- Site: [https://mayrun.dev](https://mayrun.dev) — source [`www/`](www/), setup [docs/site.md](docs/site.md)
+- **Architecture:** [docs/architecture.md](docs/architecture.md) — decide → prove → confine (also on [mayrun.dev/docs](https://mayrun.dev/docs))
+- Site: [https://mayrun.dev](https://mayrun.dev) — Astro app in [`www/`](www/), setup [docs/site.md](docs/site.md)
 - Repo: [kiket-dev/mayrun](https://github.com/kiket-dev/mayrun)
 - Stack: Rust · CLI shell-hook · MCP stdio
 - Sibling: [attestack](https://github.com/kiket-dev/attestack) (proof of AI work). mayrun is the **runtime gate**; Attestack is the optional evidence layer later.

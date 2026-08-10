@@ -1,0 +1,60 @@
+---
+interface Line {
+  cmd: string;
+  stamp: "deny" | "approve" | "allow";
+  stampLabel: string;
+  meta: string;
+}
+
+interface Props {
+  title?: string;
+  lines?: Line[];
+}
+
+const {
+  title = "mayrun check · run",
+  lines = [
+    {
+      cmd: "mayrun check 'rm -rf /'",
+      stamp: "deny",
+      stampLabel: "Deny",
+      meta: "dangerous-defaults · rm-rf",
+    },
+    {
+      cmd: "mayrun run 'git push'",
+      stamp: "approve",
+      stampLabel: "Require approval",
+      meta: "git-safe · push",
+    },
+    {
+      cmd: "mayrun run 'cargo test'",
+      stamp: "allow",
+      stampLabel: "Allow",
+      meta: "rust-dev · cargo",
+    },
+  ],
+} = Astro.props;
+---
+
+<section class="verdict" aria-label="Example decisions">
+  <div class="verdict-plane">
+    <div class="verdict-chrome">
+      <span class="dot" aria-hidden="true"></span>
+      <span class="dot" aria-hidden="true"></span>
+      <span class="dot" aria-hidden="true"></span>
+      <span class="verdict-title">{title}</span>
+    </div>
+    <ol class="ledger">
+      {
+        lines.map((line, i) => (
+          <li class={`line line-${line.stamp}`} style={`--i: ${i}`}>
+            <code class="prompt">$</code>
+            <code class="cmd">{line.cmd}</code>
+            <span class={`stamp stamp-${line.stamp}`}>{line.stampLabel}</span>
+            <span class="meta">{line.meta}</span>
+          </li>
+        ))
+      }
+    </ol>
+  </div>
+</section>

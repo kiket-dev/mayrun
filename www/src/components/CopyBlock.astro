@@ -1,0 +1,18 @@
+---
+interface Props {
+  title: string;
+  code: string;
+  copyText?: string;
+}
+
+const { title, code, copyText } = Astro.props;
+const toCopy = copyText ?? code;
+---
+
+<div class="install-block">
+  <div class="install-label">
+    <span>{title}</span>
+    <button type="button" class="copy" data-copy={toCopy}>Copy</button>
+  </div>
+  <pre><code>{code}</code></pre>
+</div>

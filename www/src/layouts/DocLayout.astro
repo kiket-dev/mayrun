@@ -1,0 +1,38 @@
+---
+import BaseLayout from "./BaseLayout.astro";
+import DocsNav from "../components/DocsNav.astro";
+
+interface Props {
+  title: string;
+  description: string;
+  slug: string;
+}
+
+const { title, description, slug } = Astro.props;
+---
+
+<BaseLayout
+  title={title}
+  description={description}
+  canonicalPath={`/docs/${slug}`}
+  ogType="article"
+  jsonLdType="Article"
+  jsonLd={{
+    headline: title,
+    author: { "@type": "Organization", name: "mayrun" },
+  }}
+>
+  <div class="docs-shell">
+    <aside class="docs-aside">
+      <DocsNav current={slug} />
+    </aside>
+    <article class="docs-article prose">
+      <p class="eyebrow">Docs</p>
+      <h1>{title}</h1>
+      <p class="section-lede">{description}</p>
+      <div class="docs-body">
+        <slot />
+      </div>
+    </article>
+  </div>
+</BaseLayout>

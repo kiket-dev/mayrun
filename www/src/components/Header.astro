@@ -1,0 +1,22 @@
+---
+import { NAV, SITE } from "../consts";
+
+const path = Astro.url.pathname.replace(/\/$/, "") || "/";
+---
+
+<header class="top">
+  <a class="mark" href="/">{SITE.name}</a>
+  <nav class="top-nav" aria-label="Primary">
+    {
+      NAV.map((item) => (
+        <a
+          href={item.href}
+          aria-current={path === item.href || path.startsWith(item.href + "/") ? "page" : undefined}
+        >
+          {item.label}
+        </a>
+      ))
+    }
+    <a href={SITE.github} rel="noopener noreferrer">GitHub</a>
+  </nav>
+</header>

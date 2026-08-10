@@ -1,0 +1,72 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import CopyBlock from "../components/CopyBlock.astro";
+---
+
+<BaseLayout
+  title="Install"
+  description="Install mayrun in 60 seconds — shell-hook first, MCP optional for Cursor, Claude, and OpenCode."
+  canonicalPath="/install"
+>
+  <section class="section page-hero" aria-labelledby="install-title">
+    <p class="eyebrow">Get started</p>
+    <h1 id="install-title">Install</h1>
+    <p class="section-lede">
+      Single Rust binary. Gate the shell before you wire MCP. Same packs either way.
+    </p>
+
+    <CopyBlock
+      title="Recommended — shell-hook"
+      code={`cargo install --git https://github.com/kiket-dev/mayrun --locked
+cd your-repo
+mayrun init --detect
+eval "$(mayrun shell-hook)"`}
+    />
+
+    <CopyBlock
+      title="Release installer"
+      code={`curl --proto '=https' --tlsv1.2 -LsSf \\
+  https://github.com/kiket-dev/mayrun/releases/latest/download/mayrun-installer.sh | sh`}
+    />
+
+    <CopyBlock
+      title="Cursor MCP"
+      code={`{
+  "mcpServers": {
+    "mayrun": {
+      "command": "mayrun",
+      "args": ["mcp"]
+    }
+  }
+}`}
+    />
+
+    <CopyBlock
+      title="Setup helpers"
+      code={`mayrun setup cursor
+mayrun setup claude --write
+mayrun setup opencode --write`}
+    />
+
+    <figure class="demo-figure">
+      <img
+        src="/assets/shell-hook-demo.gif"
+        alt="Terminal showing mayrun shell-hook denying rm -rf with a rule_id"
+        width="800"
+        height="450"
+        loading="lazy"
+      />
+      <figcaption>Shell-hook fail-closes on deny and prints <code>rule_id</code>.</figcaption>
+    </figure>
+
+    <p class="more">
+      <a href="/docs/install">Docs: install</a>
+      ·
+      <a href="/docs/quickstart">Quickstart</a>
+      ·
+      <a href="/docs/mcp">MCP & proxy</a>
+      ·
+      <a href="https://github.com/kiket-dev/mayrun/releases">Releases</a>
+    </p>
+  </section>
+</BaseLayout>

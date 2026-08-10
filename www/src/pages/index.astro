@@ -1,0 +1,135 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import VerdictLedger from "../components/VerdictLedger.astro";
+import CopyBlock from "../components/CopyBlock.astro";
+import { SITE } from "../consts";
+import { getCollection } from "astro:content";
+
+const useCases = (await getCollection("useCases")).sort(
+  (a, b) => a.data.order - b.data.order,
+);
+---
+
+<BaseLayout
+  title={undefined}
+  description={SITE.description}
+  canonicalPath="/"
+  jsonLdType="SoftwareApplication"
+  jsonLd={{
+    applicationCategory: "DeveloperApplication",
+    operatingSystem: "macOS, Linux",
+    offers: {
+      "@type": "Offer",
+      price: "0",
+      priceCurrency: "USD",
+    },
+    codeRepository: SITE.github,
+  }}
+>
+  <section class="hero" aria-labelledby="hero-brand">
+    <p class="eyebrow">Policy gate for agent side effects</p>
+    <h1 id="hero-brand">{SITE.name}</h1>
+    <p class="lede">{SITE.tagline}</p>
+    <div class="cta">
+      <a class="btn btn-primary" href="/install">Install in 60s</a>
+      <a class="btn btn-ghost" href="/use-cases">See use cases</a>
+    </div>
+    <p class="hero-note">
+      Primary path: <code>eval "$(mayrun shell-hook)"</code> — local shell gate, not
+      another dashboard.
+    </p>
+  </section>
+
+  <VerdictLedger />
+
+  <section class="section" id="how" aria-labelledby="how-title">
+    <h2 id="how-title">How it works</h2>
+    <p class="section-lede">
+      Local-first choke point on the write path — shell-hook, MCP, or CLI — not a
+      dashboard that watches after the damage.
+    </p>
+    <ul class="steps">
+      <li>
+        <strong>Decide</strong>
+        <span
+          >Repo YAML packs and rules. Deny, require approval, or allow —
+          deterministic only. AI never grants Allow.</span
+        >
+      </li>
+      <li>
+        <strong>Prove</strong>
+        <span
+          >Hash-chained receipts with <code>rule_id</code> / reason. Same gate
+          across Cursor, Claude, OpenCode, and raw shell.</span
+        >
+      </li>
+      <li>
+        <strong>Confine</strong>
+        <span
+          >Optional local sandbox under Allow. Complements vendor permissions and
+          org platforms; does not replace them.</span
+        >
+      </li>
+    </ul>
+  </section>
+
+  <section class="section" aria-labelledby="cases-title">
+    <h2 id="cases-title">Built for real agent mishaps</h2>
+    <p class="section-lede">
+      Business cases from the write path — not governance theater.
+    </p>
+    <ul class="card-grid">
+      {
+        useCases.slice(0, 6).map((uc) => (
+          <li>
+            <a class="card-link" href={`/use-cases/${uc.id}`}>
+              <h3>{uc.data.title}</h3>
+              <p>{uc.data.description}</p>
+              {uc.data.pack && <span class="chip">{uc.data.pack}</span>}
+            </a>
+          </li>
+        ))
+      }
+    </ul>
+    <p class="more"><a href="/use-cases">All use cases</a> · <a href="/packs">Pack catalog</a></p>
+  </section>
+
+  <section class="section" id="install" aria-labelledby="install-title">
+    <h2 id="install-title">Install</h2>
+    <p class="section-lede">
+      Single Rust binary. Shell-hook first; MCP optional for Cursor / Claude /
+      OpenCode.
+    </p>
+
+    <CopyBlock
+      title="60s shell-hook"
+      code={`cargo install --git https://github.com/kiket-dev/mayrun --locked
+mayrun init --detect
+eval "$(mayrun shell-hook)"
+rm -rf /    # Deny + rule_id`}
+      copyText={`cargo install --git https://github.com/kiket-dev/mayrun --locked
+mayrun init --detect
+eval "$(mayrun shell-hook)"`}
+    />
+
+    <CopyBlock
+      title="Init + smoke"
+      code={`mayrun init --detect
+mayrun check 'rm -rf /'      # Deny
+mayrun run 'git status'      # Allow → execute`}
+      copyText={`mayrun init --detect
+mayrun check 'rm -rf /'
+mayrun run 'git status'`}
+    />
+
+    <p class="more">
+      <a href="/docs/install">Full install guide</a>
+      ·
+      <a href="/docs/quickstart">Quickstart</a>
+      ·
+      <a href="/docs">Docs</a>
+      ·
+      <a href="/pricing">Pricing</a>
+    </p>
+  </section>
+</BaseLayout>

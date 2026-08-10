@@ -1,0 +1,47 @@
+---
+import BaseLayout from "../../layouts/BaseLayout.astro";
+import CopyBlock from "../../components/CopyBlock.astro";
+import { getCollection, render } from "astro:content";
+
+export async function getStaticPaths() {
+  const packs = await getCollection("packs");
+  return packs.map((entry) => ({
+    params: { slug: entry.id },
+    props: { entry },
+  }));
+}
+
+const { entry } = Astro.props;
+const { Content } = await render(entry);
+const snippet = `extends:\n  - pack: ${entry.data.packId}`;
+---
+
+<BaseLayout
+  title={entry.data.packId}
+  description={entry.data.description}
+  canonicalPath={`/packs/${entry.id}`}
+  ogType="article"
+  jsonLdType="Article"
+  jsonLd={{ headline: entry.data.title }}
+>
+  <article class="section page-hero prose">
+    <p class="eyebrow">Pack</p>
+    <h1><code>{entry.data.packId}</code></h1>
+    <p class="section-lede">{entry.data.description}</p>
+    <p class="card-meta">Default effect: {entry.data.effect}</p>
+    <CopyBlock title="Extend in policy" code={snippet} />
+    <div class="docs-body">
+      <Content />
+    </div>
+    <p class="more">
+      <a href="/packs">All packs</a>
+      ·
+      <a href="/docs/policy">Policy docs</a>
+      ·
+      <a
+        href={`https://github.com/kiket-dev/mayrun/blob/main/packs/${entry.data.packId}.yaml`}
+        >Source YAML</a
+      >
+    </p>
+  </article>
+</BaseLayout>

@@ -1,0 +1,78 @@
+---
+import Seo from "../components/Seo.astro";
+import JsonLd from "../components/JsonLd.astro";
+import Header from "../components/Header.astro";
+import Footer from "../components/Footer.astro";
+import "../styles/global.css";
+import { SITE } from "../consts";
+
+interface Props {
+  title?: string;
+  description?: string;
+  canonicalPath?: string;
+  ogType?: string;
+  noindex?: boolean;
+  jsonLd?: Record<string, unknown>;
+  jsonLdType?: "WebSite" | "SoftwareApplication" | "Article" | "FAQPage";
+}
+
+const {
+  title,
+  description,
+  canonicalPath = Astro.url.pathname,
+  ogType,
+  noindex = false,
+  jsonLd = {},
+  jsonLdType = "WebSite",
+} = Astro.props;
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <Seo
+      title={title}
+      description={description}
+      canonicalPath={canonicalPath}
+      ogType={ogType}
+      noindex={noindex}
+    />
+    <JsonLd
+      type={jsonLdType}
+      name={title || SITE.name}
+      description={description || SITE.description}
+      path={canonicalPath}
+      extra={jsonLd}
+    />
+  </head>
+  <body>
+    <a class="skip" href="#main">Skip to content</a>
+    <Header />
+    <main id="main">
+      <slot />
+    </main>
+    <Footer />
+    <script>
+      document.querySelectorAll<HTMLButtonElement>(".copy[data-copy]").forEach((button) => {
+        button.addEventListener("click", async () => {
+          const text = button.getAttribute("data-copy");
+          if (!text) return;
+          try {
+            await navigator.clipboard.writeText(text);
+            button.dataset.copied = "true";
+            button.textContent = "Copied";
+            window.setTimeout(() => {
+              button.dataset.copied = "false";
+              button.textContent = "Copy";
+            }, 1600);
+          } catch {
+            button.textContent = "Failed";
+            window.setTimeout(() => {
+              button.textContent = "Copy";
+            }, 1600);
+          }
+        });
+      });
+    </script>
+  </body>
+</html>

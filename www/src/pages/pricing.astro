@@ -1,0 +1,72 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+---
+
+<BaseLayout
+  title="Pricing"
+  description="Local gate is free (MIT). Pro unlocks CI receipt enforcement — no SSO theater."
+  canonicalPath="/pricing"
+  jsonLdType="SoftwareApplication"
+  jsonLd={{
+    offers: [
+      {
+        "@type": "Offer",
+        name: "Free",
+        price: "0",
+        priceCurrency: "USD",
+      },
+      {
+        "@type": "Offer",
+        name: "Pro",
+        price: "29",
+        priceCurrency: "USD",
+        description: "CI receipt enforcement with offline license",
+      },
+    ],
+  }}
+>
+  <section class="section page-hero pricing" aria-labelledby="pricing-title">
+    <p class="eyebrow">Pricing</p>
+    <h1 id="pricing-title">Free local. Pro for CI proof.</h1>
+    <p class="section-lede">
+      Local gate is free. Pro unlocks CI receipt enforcement — no SSO theater.
+    </p>
+    <div class="price-rows">
+      <div class="price-row">
+        <h2>Free</h2>
+        <p class="price-amt">$0</p>
+        <p>
+          CLI, shell-hook, MCP server, packs, local receipts, scoreboard.
+          <code>mayrun-ci</code> Free tier: policy compile + advisory annotations.
+        </p>
+        <p class="price-cta">
+          <a class="btn btn-ghost" href="/install">Install</a>
+        </p>
+      </div>
+      <div class="price-row">
+        <h2>Pro</h2>
+        <p class="price-amt">$29<span>/mo</span></p>
+        <p>
+          Signed offline license for GitHub Actions receipt gate. Fail PRs when
+          policy/receipt evidence is missing. Placeholder price — finalize after
+          feedback.
+        </p>
+        <p class="price-cta">
+          <a
+            class="btn btn-primary"
+            href="https://buy.stripe.com/test_mayrun_pro_placeholder"
+            >Checkout (Stripe)</a
+          >
+        </p>
+      </div>
+    </div>
+    <p class="price-notes">
+      After payment you receive an <code>mr1.…</code> license key for the
+      <code>MAYRUN_LICENSE</code> Actions secret. See
+      <a href="/docs/license">license docs</a>
+      and
+      <a href="/docs/ci">mayrun-ci</a>.
+      Non-goals: enterprise SSO, hosted control plane, marketplace scanning.
+    </p>
+  </section>
+</BaseLayout>

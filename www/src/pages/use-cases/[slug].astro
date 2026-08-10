@@ -1,0 +1,51 @@
+---
+import BaseLayout from "../../layouts/BaseLayout.astro";
+import { getCollection, render } from "astro:content";
+
+export async function getStaticPaths() {
+  const useCases = await getCollection("useCases");
+  return useCases.map((entry) => ({
+    params: { slug: entry.id },
+    props: { entry },
+  }));
+}
+
+const { entry } = Astro.props;
+const { Content } = await render(entry);
+---
+
+<BaseLayout
+  title={entry.data.title}
+  description={entry.data.description}
+  canonicalPath={`/use-cases/${entry.id}`}
+  ogType="article"
+  jsonLdType="Article"
+  jsonLd={{ headline: entry.data.title }}
+>
+  <article class="section page-hero prose">
+    <p class="eyebrow">Use case</p>
+    <h1>{entry.data.title}</h1>
+    <p class="section-lede">{entry.data.description}</p>
+    <p class="card-meta">
+      {entry.data.audience}
+      {
+        entry.data.pack && (
+          <>
+            {" "}
+            · pack <a href={`/packs/${entry.data.pack}`}>{entry.data.pack}</a>
+          </>
+        )
+      }
+    </p>
+    <div class="docs-body">
+      <Content />
+    </div>
+    <p class="more">
+      <a href="/use-cases">All use cases</a>
+      ·
+      <a href="/install">Install</a>
+      ·
+      <a href="/docs">Docs</a>
+    </p>
+  </article>
+</BaseLayout>

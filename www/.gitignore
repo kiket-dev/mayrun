@@ -1,0 +1,12 @@
+# build
+dist/
+.astro/
+node_modules/
+
+# local
+.wrangler/
+.env
+.env.*
+
+# archived pre-Astro static (reference only)
+# _legacy_static is kept in repo temporarily for design parity

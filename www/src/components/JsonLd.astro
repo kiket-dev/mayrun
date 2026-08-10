@@ -1,0 +1,30 @@
+---
+import { SITE } from "../consts";
+
+interface Props {
+  type?: "WebSite" | "SoftwareApplication" | "Article" | "FAQPage";
+  name?: string;
+  description?: string;
+  path?: string;
+  extra?: Record<string, unknown>;
+}
+
+const {
+  type = "WebSite",
+  name = SITE.name,
+  description = SITE.description,
+  path = "/",
+  extra = {},
+} = Astro.props;
+
+const data = {
+  "@context": "https://schema.org",
+  "@type": type,
+  name,
+  description,
+  url: new URL(path, SITE.url).href,
+  ...extra,
+};
+---
+
+<script is:inline type="application/ld+json" set:html={JSON.stringify(data)} />

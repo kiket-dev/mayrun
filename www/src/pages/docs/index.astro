@@ -1,0 +1,38 @@
+---
+import BaseLayout from "../../layouts/BaseLayout.astro";
+import DocsNav from "../../components/DocsNav.astro";
+import { DOC_NAV } from "../../consts";
+---
+
+<BaseLayout
+  title="Docs"
+  description="Install, quickstart, architecture, policy, MCP, CI, license, and sandbox — mayrun reference."
+  canonicalPath="/docs"
+>
+  <div class="docs-shell">
+    <aside class="docs-aside">
+      <DocsNav />
+    </aside>
+    <section class="docs-article">
+      <p class="eyebrow">Documentation</p>
+      <h1>Docs</h1>
+      <p class="section-lede">
+        Everything you need to put mayrun on the write path — then prove it in CI.
+      </p>
+      {
+        DOC_NAV.map((group) => (
+          <div class="docs-index-group">
+            <h2>{group.label}</h2>
+            <ul class="docs-index-list">
+              {group.items.map((item) => (
+                <li>
+                  <a href={`/docs/${item.slug}`}>{item.title}</a>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))
+      }
+    </section>
+  </div>
+</BaseLayout>

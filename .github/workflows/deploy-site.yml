@@ -25,6 +25,18 @@ jobs:
         with:
           persist-credentials: false
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: www/package-lock.json
+
+      - name: Install and build site
+        working-directory: www
+        run: |
+          npm ci
+          npm run build
+
       - name: Deploy mayrun.dev (Cloudflare Pages)
         # cloudflare/wrangler-action@v4.0.0
         uses: cloudflare/wrangler-action@ebbaa1584979971c8614a24965b4405ff95890e0
@@ -32,4 +44,4 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
           workingDirectory: www
-          command: pages deploy public --project-name mayrun --commit-dirty=true
+          command: pages deploy dist --project-name mayrun --commit-dirty=true
