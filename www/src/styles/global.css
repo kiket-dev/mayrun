@@ -276,7 +276,7 @@ button:focus-visible {
   gap: 1.35rem;
 }
 
-.line {
+.ledger .line {
   display: grid;
   grid-template-columns: auto 1fr;
   grid-template-areas:
@@ -298,14 +298,14 @@ button:focus-visible {
   }
 }
 
-.prompt {
+.ledger .prompt {
   grid-area: prompt;
   color: #6b7a8c;
   font-family: var(--font-mono);
   font-size: 0.9rem;
 }
 
-.cmd {
+.ledger .cmd {
   grid-area: cmd;
   font-family: var(--font-mono);
   font-size: clamp(0.85rem, 2.2vw, 0.95rem);
@@ -314,7 +314,7 @@ button:focus-visible {
   overflow-wrap: anywhere;
 }
 
-.stamp {
+.ledger .stamp {
   grid-area: stamp;
   display: inline-flex;
   width: fit-content;
@@ -329,22 +329,22 @@ button:focus-visible {
   text-transform: uppercase;
 }
 
-.stamp-deny {
+.ledger .stamp-deny {
   color: #f0a39c;
   background: rgba(194, 59, 46, 0.15);
 }
 
-.stamp-approve {
+.ledger .stamp-approve {
   color: #f0c57a;
   background: rgba(184, 106, 10, 0.15);
 }
 
-.stamp-allow {
+.ledger .stamp-allow {
   color: #8fd4b4;
   background: rgba(27, 122, 85, 0.18);
 }
 
-.meta {
+.ledger .meta {
   grid-area: meta;
   font-family: var(--font-mono);
   font-size: 0.75rem;
@@ -352,7 +352,7 @@ button:focus-visible {
 }
 
 @media (min-width: 720px) {
-  .line {
+  .ledger .line {
     grid-template-columns: auto minmax(0, 1fr) auto;
     grid-template-areas:
       "prompt cmd stamp"
@@ -360,7 +360,7 @@ button:focus-visible {
     align-items: baseline;
   }
 
-  .stamp {
+  .ledger .stamp {
     justify-self: end;
   }
 }
