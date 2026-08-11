@@ -1,0 +1,48 @@
+# Local PHP / Composer toolchain without require / publish by default.
+rules:
+  - id: pack.php.approve-publish
+    effect: require_approval
+    reason: "Publishes a package to Packagist or a registry"
+    match:
+      any:
+        - argv: { binary: composer, args_prefix: [publish] }
+        - capability_any: [pkg.publish]
+
+  - id: pack.php.approve-install
+    effect: require_approval
+    reason: "Installs or requires packages from the network"
+    match:
+      any:
+        - argv: { binary: composer, args_prefix: [require] }
+        - argv: { binary: composer, args_prefix: [install] }
+        - argv: { binary: composer, args_prefix: [update] }
+        - capability_any: [pkg.install]
+
+  - id: pack.php.allow-phpunit
+    effect: allow
+    reason: "phpunit / pest"
+    match:
+      any:
+        - argv: { binary: phpunit }
+        - argv: { binary: pest }
+        - argv: { binary: php, args_prefix: [vendor/bin/phpunit] }
+        - argv: { binary: php, args_prefix: [vendor/bin/pest] }
+
+  - id: pack.php.allow-composer-local
+    effect: allow
+    reason: "Composer validate / dump-autoload / scripts"
+    match:
+      any:
+        - argv: { binary: composer, args_prefix: [validate] }
+        - argv: { binary: composer, args_prefix: [dump-autoload] }
+        - argv: { binary: composer, args_prefix: [check-platform-reqs] }
+        - argv: { binary: composer, args_prefix: [run-script] }
+
+  - id: pack.php.allow-php
+    effect: allow
+    reason: "php local scripts / lint"
+    match:
+      any:
+        - argv: { binary: php, args_prefix: [-l] }
+        - argv: { binary: php, args_prefix: [artisan] }
+        - argv: { binary: php }

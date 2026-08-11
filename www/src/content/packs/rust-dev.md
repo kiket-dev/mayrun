@@ -6,4 +6,4 @@ packId: rust-dev
 order: 7
 ---
 
-Allows local build/test workflows. `cargo publish`, `install`, `add`, and `update` require approval.
+Allows local build/test workflows. `cargo publish`, `install`, `add`, and `update` require approval. Compose with [`shell-basics`](/packs/shell-basics) for everyday unix/mayrun allows.

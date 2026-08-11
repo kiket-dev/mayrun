@@ -10,6 +10,7 @@ extends:
   - pack: secrets-safe
   - pack: exec-escapes
   - pack: network-exfil
+  - pack: shell-basics
   - pack: git-safe
   - pack: rust-dev
   - pack: ops-approve

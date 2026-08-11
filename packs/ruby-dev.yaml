@@ -1,0 +1,48 @@
+# Local Ruby / Bundler toolchain without gem push / bundle add by default.
+rules:
+  - id: pack.ruby.approve-publish
+    effect: require_approval
+    reason: "Pushes a gem to a registry"
+    match:
+      any:
+        - argv: { binary: gem, args_prefix: [push] }
+        - argv: { binary: bundle, args_prefix: [exec, gem, push] }
+        - capability_any: [pkg.publish]
+
+  - id: pack.ruby.approve-install
+    effect: require_approval
+    reason: "Installs gems from the network"
+    match:
+      any:
+        - argv: { binary: bundle, args_prefix: [install] }
+        - argv: { binary: bundle, args_prefix: [update] }
+        - argv: { binary: bundle, args_prefix: [add] }
+        - argv: { binary: gem, args_prefix: [install] }
+        - capability_any: [pkg.install]
+
+  - id: pack.ruby.allow-rspec
+    effect: allow
+    reason: "rspec / rake test"
+    match:
+      any:
+        - argv: { binary: rspec }
+        - argv: { binary: bundle, args_prefix: [exec, rspec] }
+        - argv: { binary: rake, args_prefix: [test] }
+        - argv: { binary: bundle, args_prefix: [exec, rake, test] }
+
+  - id: pack.ruby.allow-rake
+    effect: allow
+    reason: "rake / rubocop local"
+    match:
+      any:
+        - argv: { binary: rake }
+        - argv: { binary: rubocop }
+        - argv: { binary: bundle, args_prefix: [exec, rake] }
+        - argv: { binary: bundle, args_prefix: [exec, rubocop] }
+        - argv: { binary: bundle, args_prefix: [exec] }
+
+  - id: pack.ruby.allow-ruby
+    effect: allow
+    reason: "ruby local scripts"
+    match:
+      argv: { binary: ruby }

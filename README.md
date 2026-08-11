@@ -56,7 +56,8 @@ mayrun setup opencode
 
 See [docs/policy.md](docs/policy.md) and [examples/policy.yaml](examples/policy.yaml).
 
-- Compose **packs** (`dangerous-defaults`, `secrets-safe`, `exec-escapes`, `network-exfil`, `mcp-safe`, `git-safe`, …) via `extends`
+- Compose **packs** (`dangerous-defaults`, `shell-basics`, `secrets-safe`, `exec-escapes`, `network-exfil`, `mcp-safe`, `git-safe`, `rust-dev`, `node-dev`, `python-dev`, `go-dev`, `java-dev`, `dotnet-dev`, `cpp-dev`, `php-dev`, `ruby-dev`, `kotlin-dev`, …) via `extends`
+
 - Structured **rules** with `id`, `effect`, `match` (regex / argv / capabilities / `mcp`), `reason`
 - Order: **deny → require_approval → allow → default** (default is deny); pipelines take the **worst** stage
 - **Invariant:** only deterministic rules can Allow; AI authoring never auto-applies

@@ -1,0 +1,48 @@
+# Local JVM / Maven / Gradle toolchain without publish by default.
+rules:
+  - id: pack.java.approve-publish
+    effect: require_approval
+    reason: "Publishes artifacts to a repository"
+    match:
+      any:
+        - argv: { binary: mvn, args_prefix: [deploy] }
+        - argv: { binary: mvn, args_prefix: [release:perform] }
+        - argv: { binary: mvnw, args_prefix: [deploy] }
+        - argv: { binary: gradle, args_prefix: [publish] }
+        - argv: { binary: gradle, args_prefix: [publishToMavenLocal] }
+        - argv: { binary: gradlew, args_prefix: [publish] }
+        - capability_any: [pkg.publish]
+
+  - id: pack.java.approve-install
+    effect: require_approval
+    reason: "Resolves or installs dependencies from the network in a mutating way"
+    match:
+      any:
+        - argv: { binary: mvn, args_prefix: [dependency:get] }
+        - capability_any: [pkg.install]
+
+  - id: pack.java.allow-mvn
+    effect: allow
+    reason: "Maven local compile / test / package"
+    match:
+      any:
+        - argv: { binary: mvn, args_prefix: [test] }
+        - argv: { binary: mvn, args_prefix: [compile] }
+        - argv: { binary: mvn, args_prefix: [package] }
+        - argv: { binary: mvn, args_prefix: [verify] }
+        - argv: { binary: mvn, args_prefix: [clean] }
+        - argv: { binary: mvnw, args_prefix: [test] }
+        - argv: { binary: mvnw, args_prefix: [package] }
+
+  - id: pack.java.allow-gradle
+    effect: allow
+    reason: "Gradle local build / test"
+    match:
+      any:
+        - argv: { binary: gradle, args_prefix: [test] }
+        - argv: { binary: gradle, args_prefix: [build] }
+        - argv: { binary: gradle, args_prefix: [check] }
+        - argv: { binary: gradle, args_prefix: [assemble] }
+        - argv: { binary: gradlew, args_prefix: [test] }
+        - argv: { binary: gradlew, args_prefix: [build] }
+        - argv: { binary: gradlew, args_prefix: [check] }

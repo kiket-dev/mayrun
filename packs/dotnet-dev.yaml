@@ -1,0 +1,45 @@
+# Local .NET SDK without nuget push / package add by default.
+rules:
+  - id: pack.dotnet.approve-publish
+    effect: require_approval
+    reason: "Pushes packages to a NuGet feed"
+    match:
+      any:
+        - argv: { binary: dotnet, args_prefix: [nuget, push] }
+        - argv: { binary: nuget, args_prefix: [push] }
+        - capability_any: [pkg.publish]
+
+  - id: pack.dotnet.approve-install
+    effect: require_approval
+    reason: "Adds or restores packages from the network"
+    match:
+      any:
+        - argv: { binary: dotnet, args_prefix: [add, package] }
+        - argv: { binary: dotnet, args_prefix: [tool, install] }
+        - argv: { binary: dotnet, args_prefix: [new] }
+        - capability_any: [pkg.install]
+
+  - id: pack.dotnet.allow-build
+    effect: allow
+    reason: "dotnet build / restore / clean"
+    match:
+      any:
+        - argv: { binary: dotnet, args_prefix: [build] }
+        - argv: { binary: dotnet, args_prefix: [restore] }
+        - argv: { binary: dotnet, args_prefix: [clean] }
+        - argv: { binary: dotnet, args_prefix: [msbuild] }
+
+  - id: pack.dotnet.allow-test
+    effect: allow
+    reason: "dotnet test"
+    match:
+      argv: { binary: dotnet, args_prefix: [test] }
+
+  - id: pack.dotnet.allow-run
+    effect: allow
+    reason: "dotnet run / format"
+    match:
+      any:
+        - argv: { binary: dotnet, args_prefix: [run] }
+        - argv: { binary: dotnet, args_prefix: [format] }
+        - argv: { binary: dotnet, args_prefix: [watch] }

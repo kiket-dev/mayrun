@@ -11,8 +11,13 @@ pub struct Detection {
 /// Detect packs from workspace signals. Always includes the baseline safety packs;
 /// never weakens `dangerous-defaults`.
 pub fn detect_packs(root: &Path) -> Detection {
-    let mut packs = vec!["dangerous-defaults", "secrets-safe", "exec-escapes"];
-    let mut signals = vec!["baseline safety packs".into()];
+    let mut packs = vec![
+        "dangerous-defaults",
+        "secrets-safe",
+        "exec-escapes",
+        "shell-basics",
+    ];
+    let mut signals = vec!["baseline safety packs + shell-basics".into()];
 
     if root.join(".git").exists() {
         packs.push("git-safe");
@@ -31,6 +36,55 @@ pub fn detect_packs(root: &Path) -> Detection {
     {
         packs.push("node-dev");
         signals.push("Node lockfile / package.json → node-dev".into());
+    }
+    if root.join("pyproject.toml").is_file()
+        || root.join("requirements.txt").is_file()
+        || root.join("Pipfile").is_file()
+        || root.join("poetry.lock").is_file()
+        || root.join("uv.lock").is_file()
+    {
+        packs.push("python-dev");
+        signals.push("Python project files → python-dev".into());
+    }
+    if root.join("go.mod").is_file() {
+        packs.push("go-dev");
+        signals.push("go.mod → go-dev".into());
+    }
+    if root.join("pom.xml").is_file()
+        || root.join("build.gradle").is_file()
+        || root.join("build.gradle.kts").is_file()
+    {
+        // Prefer kotlin-dev when Kotlin DSL / sources are present.
+        if root.join("build.gradle.kts").is_file()
+            || walk_shallow_match(root, |name| name.ends_with(".kt") || name.ends_with(".kts"))
+        {
+            packs.push("kotlin-dev");
+            signals.push("Kotlin/Gradle KTS → kotlin-dev".into());
+        } else {
+            packs.push("java-dev");
+            signals.push("pom.xml / build.gradle → java-dev".into());
+        }
+    }
+    if walk_shallow_match(root, |name| {
+        name.ends_with(".csproj") || name.ends_with(".sln") || name.ends_with(".fsproj")
+    }) {
+        packs.push("dotnet-dev");
+        signals.push(".csproj / .sln → dotnet-dev".into());
+    }
+    if root.join("CMakeLists.txt").is_file()
+        || root.join("meson.build").is_file()
+        || root.join("compile_commands.json").is_file()
+    {
+        packs.push("cpp-dev");
+        signals.push("CMake/meson → cpp-dev".into());
+    }
+    if root.join("composer.json").is_file() {
+        packs.push("php-dev");
+        signals.push("composer.json → php-dev".into());
+    }
+    if root.join("Gemfile").is_file() {
+        packs.push("ruby-dev");
+        signals.push("Gemfile → ruby-dev".into());
     }
     if has_ops_signals(root) {
         packs.push("ops-approve");
@@ -124,6 +178,7 @@ mod tests {
         assert!(d.packs.contains(&"dangerous-defaults"));
         assert!(d.packs.contains(&"secrets-safe"));
         assert!(d.packs.contains(&"exec-escapes"));
+        assert!(d.packs.contains(&"shell-basics"));
         assert!(!d.packs.contains(&"rust-dev"));
     }
 
@@ -135,6 +190,7 @@ mod tests {
         let d = detect_packs(dir.path());
         assert!(d.packs.contains(&"rust-dev"));
         assert!(d.packs.contains(&"git-safe"));
+        assert!(d.packs.contains(&"shell-basics"));
         assert_eq!(d.packs.first().copied(), Some("dangerous-defaults"));
     }
 
@@ -144,6 +200,16 @@ mod tests {
         std::fs::write(dir.path().join("package.json"), "{}\n").unwrap();
         let d = detect_packs(dir.path());
         assert!(d.packs.contains(&"node-dev"));
+    }
+
+    #[test]
+    fn python_go_samples() {
+        let dir = tempdir().unwrap();
+        std::fs::write(dir.path().join("pyproject.toml"), "[project]\nname=\"x\"\n").unwrap();
+        std::fs::write(dir.path().join("go.mod"), "module example.com/x\n").unwrap();
+        let d = detect_packs(dir.path());
+        assert!(d.packs.contains(&"python-dev"));
+        assert!(d.packs.contains(&"go-dev"));
     }
 
     #[test]

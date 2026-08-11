@@ -20,13 +20,14 @@ apiVersion: mayrun.dev/v1
 default: deny
 extends:
   - pack: dangerous-defaults
+  - pack: shell-basics
   - pack: secrets-safe
   - pack: exec-escapes
   - pack: git-safe
   - pack: rust-dev
 ```
 
-Browse the catalog: [Packs](/packs).
+Browse the catalog: [Packs](/packs). Language packs (`python-dev`, `go-dev`, `java-dev`, `dotnet-dev`, `cpp-dev`, `php-dev`, `ruby-dev`, `kotlin-dev`, plus `rust-dev` / `node-dev`) compose with [`shell-basics`](/packs/shell-basics) for everyday unix/mayrun allows.
 
 ## Structured rules
 

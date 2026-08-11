@@ -1,0 +1,14 @@
+# Shared allowlist for everyday read-only shell utilities and mayrun itself.
+# Language packs should extend this via policy composition (init --detect adds it).
+rules:
+  - id: pack.shell.allow-unix-read
+    effect: allow
+    reason: "Common read-only shell utilities"
+    match:
+      regex: '^(ls|pwd|echo|cat|head|tail|rg|grep|find|wc|date|whoami|uname)(\s|$)'
+
+  - id: pack.shell.allow-mayrun
+    effect: allow
+    reason: "mayrun introspection"
+    match:
+      argv: { binary: mayrun }

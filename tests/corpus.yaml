@@ -104,14 +104,6 @@ cases:
   - command: "cargo tree"
     expect: allow
     rule_prefix: pack.rust.allow-tree
-  - command: "ls -la"
-    expect: allow
-    rule_prefix: pack.rust.allow-unix-read
-    packs: [dangerous-defaults, rust-dev]
-  - command: "mayrun status"
-    expect: allow
-    rule_prefix: pack.rust.allow-mayrun
-    packs: [dangerous-defaults, rust-dev]
 
   # --- node-dev ---
   - command: "npm publish"
@@ -134,14 +126,184 @@ cases:
     expect: allow
     rule_prefix: pack.node.allow-yarn-bun
     packs: [dangerous-defaults, node-dev]
-  - command: "pwd"
+
+  # --- shell-basics ---
+  - command: "ls -la"
     expect: allow
-    rule_prefix: pack.node.allow-unix-read
-    packs: [dangerous-defaults, node-dev]
-  - command: "mayrun check 'ls'"
+    rule_prefix: pack.shell.allow-unix-read
+    packs: [dangerous-defaults, shell-basics]
+  - command: "mayrun status"
     expect: allow
-    rule_prefix: pack.node.allow-mayrun
-    packs: [dangerous-defaults, node-dev]
+    rule_prefix: pack.shell.allow-mayrun
+    packs: [dangerous-defaults, shell-basics]
+
+  # --- python-dev ---
+  - command: "twine upload dist/pkg.whl"
+    expect: require_approval
+    rule_prefix: pack.python.approve-publish
+    packs: [dangerous-defaults, python-dev]
+  - command: "pip install requests"
+    expect: require_approval
+    rule_prefix: pack.python.approve-install
+    packs: [dangerous-defaults, python-dev]
+  - command: "pytest"
+    expect: allow
+    rule_prefix: pack.python.allow-pytest
+    packs: [dangerous-defaults, python-dev]
+  - command: "python3 -m unittest"
+    expect: allow
+    rule_prefix: pack.python.allow-unittest
+    packs: [dangerous-defaults, python-dev]
+  - command: "ruff check ."
+    expect: allow
+    rule_prefix: pack.python.allow-lint-format
+    packs: [dangerous-defaults, python-dev]
+  - command: "python3 -m http.server"
+    expect: allow
+    rule_prefix: pack.python.allow-module-run
+    packs: [dangerous-defaults, python-dev]
+
+  # --- go-dev ---
+  - command: "goreleaser release"
+    expect: require_approval
+    rule_prefix: pack.go.approve-publish
+    packs: [dangerous-defaults, go-dev]
+  - command: "go get example.com/mod@latest"
+    expect: require_approval
+    rule_prefix: pack.go.approve-install
+    packs: [dangerous-defaults, go-dev]
+  - command: "go test ./..."
+    expect: allow
+    rule_prefix: pack.go.allow-test
+    packs: [dangerous-defaults, go-dev]
+  - command: "go build ./..."
+    expect: allow
+    rule_prefix: pack.go.allow-build
+    packs: [dangerous-defaults, go-dev]
+  - command: "go run ."
+    expect: allow
+    rule_prefix: pack.go.allow-run
+    packs: [dangerous-defaults, go-dev]
+
+  # --- java-dev ---
+  - command: "mvn deploy"
+    expect: require_approval
+    rule_prefix: pack.java.approve-publish
+    packs: [dangerous-defaults, java-dev]
+  - command: "mvn dependency:get -Dartifact=x:y:1.0"
+    expect: require_approval
+    rule_prefix: pack.java.approve-install
+    packs: [dangerous-defaults, java-dev]
+  - command: "mvn test"
+    expect: allow
+    rule_prefix: pack.java.allow-mvn
+    packs: [dangerous-defaults, java-dev]
+  - command: "gradle build"
+    expect: allow
+    rule_prefix: pack.java.allow-gradle
+    packs: [dangerous-defaults, java-dev]
+
+  # --- dotnet-dev ---
+  - command: "dotnet nuget push pkg.nupkg"
+    expect: require_approval
+    rule_prefix: pack.dotnet.approve-publish
+    packs: [dangerous-defaults, dotnet-dev]
+  - command: "dotnet add package Newtonsoft.Json"
+    expect: require_approval
+    rule_prefix: pack.dotnet.approve-install
+    packs: [dangerous-defaults, dotnet-dev]
+  - command: "dotnet build"
+    expect: allow
+    rule_prefix: pack.dotnet.allow-build
+    packs: [dangerous-defaults, dotnet-dev]
+  - command: "dotnet test"
+    expect: allow
+    rule_prefix: pack.dotnet.allow-test
+    packs: [dangerous-defaults, dotnet-dev]
+  - command: "dotnet run"
+    expect: allow
+    rule_prefix: pack.dotnet.allow-run
+    packs: [dangerous-defaults, dotnet-dev]
+
+  # --- cpp-dev ---
+  - command: "brew install cmake"
+    expect: require_approval
+    rule_prefix: pack.cpp.approve-install
+    packs: [dangerous-defaults, cpp-dev]
+  - command: "cmake --build build"
+    expect: allow
+    rule_prefix: pack.cpp.allow-cmake
+    packs: [dangerous-defaults, cpp-dev]
+  - command: "ninja -C build"
+    expect: allow
+    rule_prefix: pack.cpp.allow-ninja-make
+    packs: [dangerous-defaults, cpp-dev]
+  - command: "clang++ -O2 main.cpp"
+    expect: allow
+    rule_prefix: pack.cpp.allow-compilers
+    packs: [dangerous-defaults, cpp-dev]
+
+  # --- php-dev ---
+  - command: "composer require laravel/framework"
+    expect: require_approval
+    rule_prefix: pack.php.approve-install
+    packs: [dangerous-defaults, php-dev]
+  - command: "composer publish"
+    expect: require_approval
+    rule_prefix: pack.php.approve-publish
+    packs: [dangerous-defaults, php-dev]
+  - command: "phpunit"
+    expect: allow
+    rule_prefix: pack.php.allow-phpunit
+    packs: [dangerous-defaults, php-dev]
+  - command: "composer validate"
+    expect: allow
+    rule_prefix: pack.php.allow-composer-local
+    packs: [dangerous-defaults, php-dev]
+  - command: "php -l index.php"
+    expect: allow
+    rule_prefix: pack.php.allow-php
+    packs: [dangerous-defaults, php-dev]
+
+  # --- ruby-dev ---
+  - command: "gem push mygem-1.0.0.gem"
+    expect: require_approval
+    rule_prefix: pack.ruby.approve-publish
+    packs: [dangerous-defaults, ruby-dev]
+  - command: "bundle install"
+    expect: require_approval
+    rule_prefix: pack.ruby.approve-install
+    packs: [dangerous-defaults, ruby-dev]
+  - command: "rspec"
+    expect: allow
+    rule_prefix: pack.ruby.allow-rspec
+    packs: [dangerous-defaults, ruby-dev]
+  - command: "rubocop"
+    expect: allow
+    rule_prefix: pack.ruby.allow-rake
+    packs: [dangerous-defaults, ruby-dev]
+  - command: "ruby script.rb"
+    expect: allow
+    rule_prefix: pack.ruby.allow-ruby
+    packs: [dangerous-defaults, ruby-dev]
+
+  # --- kotlin-dev ---
+  - command: "gradle publish"
+    expect: require_approval
+    rule_prefix: pack.kotlin.approve-publish
+    packs: [dangerous-defaults, kotlin-dev]
+  - command: "gradle --refresh-dependencies"
+    expect: require_approval
+    rule_prefix: pack.kotlin.approve-install
+    packs: [dangerous-defaults, kotlin-dev]
+  - command: "gradle build"
+    expect: allow
+    rule_prefix: pack.kotlin.allow-gradle
+    packs: [dangerous-defaults, kotlin-dev]
+  - command: "kotlinc hello.kt"
+    expect: allow
+    rule_prefix: pack.kotlin.allow-kotlinc
+    packs: [dangerous-defaults, kotlin-dev]
 
   # --- ops-approve ---
   - command: "terraform apply"
@@ -189,7 +351,7 @@ cases:
     expect: require_approval
     rule_prefix: pack.exec.awk-system
     packs: [dangerous-defaults, exec-escapes]
-  # --- read-only (isolated so rust/node unix-read does not shadow) ---
+  # --- read-only (isolated so shell-basics does not shadow) ---
   - command: "ls"
     expect: allow
     rule_prefix: pack.readonly.allow-ls
@@ -265,9 +427,9 @@ cases:
     packs: [dangerous-defaults]
   - command: "cat README.md"
     expect: allow
-    rule_prefix: pack.rust.allow-unix-read
-    packs: [dangerous-defaults, rust-dev]
+    rule_prefix: pack.shell.allow-unix-read
+    packs: [dangerous-defaults, shell-basics]
   - command: "find . -name x"
     expect: allow
-    rule_prefix: pack.rust.allow-unix-read
-    packs: [dangerous-defaults, rust-dev]
+    rule_prefix: pack.shell.allow-unix-read
+    packs: [dangerous-defaults, shell-basics]

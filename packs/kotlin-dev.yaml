@@ -1,0 +1,43 @@
+# Local Kotlin / Gradle Kotlin DSL toolchain (Android-adjacent) without publish by default.
+rules:
+  - id: pack.kotlin.approve-publish
+    effect: require_approval
+    reason: "Publishes Kotlin / Android artifacts"
+    match:
+      any:
+        - argv: { binary: gradle, args_prefix: [publish] }
+        - argv: { binary: gradlew, args_prefix: [publish] }
+        - argv: { binary: gradle, args_prefix: [publishToMavenLocal] }
+        - argv: { binary: gradlew, args_prefix: [publishToMavenLocal] }
+        - capability_any: [pkg.publish]
+
+  - id: pack.kotlin.approve-install
+    effect: require_approval
+    reason: "Refreshes Gradle dependencies from the network"
+    match:
+      any:
+        - argv: { binary: gradle, args_prefix: [--refresh-dependencies] }
+        - argv: { binary: gradlew, args_prefix: [--refresh-dependencies] }
+
+  - id: pack.kotlin.allow-gradle
+    effect: allow
+    reason: "Gradle Kotlin local build / test"
+    match:
+      any:
+        - argv: { binary: gradle, args_prefix: [test] }
+        - argv: { binary: gradle, args_prefix: [build] }
+        - argv: { binary: gradle, args_prefix: [check] }
+        - argv: { binary: gradle, args_prefix: [assemble] }
+        - argv: { binary: gradle, args_prefix: [assembleDebug] }
+        - argv: { binary: gradlew, args_prefix: [test] }
+        - argv: { binary: gradlew, args_prefix: [build] }
+        - argv: { binary: gradlew, args_prefix: [check] }
+        - argv: { binary: gradlew, args_prefix: [assembleDebug] }
+
+  - id: pack.kotlin.allow-kotlinc
+    effect: allow
+    reason: "kotlinc / kotlin local"
+    match:
+      any:
+        - argv: { binary: kotlinc }
+        - argv: { binary: kotlin }

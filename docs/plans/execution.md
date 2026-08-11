@@ -42,7 +42,7 @@
 
 ## Phase 2 — Release binary (days 11–18)
 
-- [ ] cargo-dist (or equivalent) multi-OS releases
+- [x] cargo-dist (or equivalent) multi-OS releases
 - [ ] Demo GIF/video: agent blocked on `rm -rf`
 - [ ] List in MCP directories / awesome lists
 - [x] Stub landing in [`www/`](../../www/) (install + one-liner)

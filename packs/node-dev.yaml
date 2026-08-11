@@ -1,4 +1,5 @@
 # Local Node/JS toolchain without publish by default.
+# Compose with shell-basics for ls/pwd/mayrun allows.
 rules:
   - id: pack.node.approve-publish
     effect: require_approval
@@ -58,15 +59,3 @@ rules:
         - argv: { binary: yarn, args_prefix: [build] }
         - argv: { binary: bun, args_prefix: [test] }
         - argv: { binary: bun, args_prefix: [run, test] }
-
-  - id: pack.node.allow-unix-read
-    effect: allow
-    reason: "Common read-only shell utilities"
-    match:
-      regex: '^(ls|pwd|echo|cat|head|tail|rg|grep|find|wc|date|whoami|uname)(\s|$)'
-
-  - id: pack.node.allow-mayrun
-    effect: allow
-    reason: "mayrun introspection"
-    match:
-      argv: { binary: mayrun }

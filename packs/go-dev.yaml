@@ -1,0 +1,45 @@
+# Local Go toolchain without network get/install by default.
+rules:
+  - id: pack.go.approve-publish
+    effect: require_approval
+    reason: "Publishes a module / tags a release for consumers"
+    match:
+      any:
+        - argv: { binary: goreleaser }
+        - capability_any: [pkg.publish]
+
+  - id: pack.go.approve-install
+    effect: require_approval
+    reason: "Fetches modules or installs binaries from the network"
+    match:
+      any:
+        - argv: { binary: go, args_prefix: [get] }
+        - argv: { binary: go, args_prefix: [install] }
+        - capability_any: [pkg.install]
+
+  - id: pack.go.allow-test
+    effect: allow
+    reason: "go test"
+    match:
+      argv: { binary: go, args_prefix: [test] }
+
+  - id: pack.go.allow-build
+    effect: allow
+    reason: "go build / generate / vet / fmt"
+    match:
+      any:
+        - argv: { binary: go, args_prefix: [build] }
+        - argv: { binary: go, args_prefix: [generate] }
+        - argv: { binary: go, args_prefix: [vet] }
+        - argv: { binary: go, args_prefix: [fmt] }
+        - argv: { binary: go, args_prefix: [mod, tidy] }
+        - argv: { binary: go, args_prefix: [mod, download] }
+        - argv: { binary: go, args_prefix: [list] }
+        - argv: { binary: go, args_prefix: [version] }
+        - argv: { binary: go, args_prefix: [env] }
+
+  - id: pack.go.allow-run
+    effect: allow
+    reason: "go run local packages"
+    match:
+      argv: { binary: go, args_prefix: [run] }

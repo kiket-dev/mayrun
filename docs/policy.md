@@ -16,6 +16,7 @@ apiVersion: mayrun.dev/v1
 default: deny
 extends:
   - pack: dangerous-defaults
+  - pack: shell-basics
   - pack: secrets-safe
   - pack: exec-escapes
   - pack: git-safe
@@ -27,15 +28,24 @@ extends:
 | Pack | Focus | Default effect |
 | --- | --- | --- |
 | `dangerous-defaults` | Destructive shell / disk / force-push / sudo / rc writes / curl\|sh | mostly **deny** |
+| `shell-basics` | Everyday `ls`/`pwd`/`cat`/`rg` + `mayrun` introspection | **allow** |
 | `secrets-safe` | Credential path exfil; project `.env*` | **deny** exfil / **require_approval** `.env` |
 | `network-exfil` | IMDS `169.254.169.254`, pipe-to-shell, obvious secret egress | **deny** |
-| `mcp-safe` | MCP tool names/args for `mcp-proxy` (deny delete / sensitive write; approve shell tools; allow read) | mixed |
-| `exec-escapes` | GTFOBins-style escapes (`find -exec`, `xargs`, interpreter `-c`/`-e`, …) | **require_approval** |
+| `mcp-safe` | MCP tool names/args for `mcp-proxy` | mixed |
+| `exec-escapes` | GTFOBins-style escapes | **require_approval** |
 | `git-safe` | Git read allow; push / commit / `reset --hard` | **allow** read / **require_approval** write |
-| `rust-dev` | Local cargo + unix read utils | **allow** / **require_approval** publish/install |
-| `node-dev` | Local npm/pnpm/yarn/bun scripts | **allow** / **require_approval** publish/install |
+| `rust-dev` | Local cargo | **allow** / **require_approval** publish/install |
+| `node-dev` | Local npm/pnpm/yarn/bun | **allow** / **require_approval** publish/install |
+| `python-dev` | Local pytest/ruff/mypy | **allow** / **require_approval** pip/twine |
+| `go-dev` | Local go test/build/run | **allow** / **require_approval** get/install |
+| `java-dev` | Maven/Gradle local | **allow** / **require_approval** deploy |
+| `dotnet-dev` | `dotnet` build/test | **allow** / **require_approval** nuget push |
+| `cpp-dev` | cmake/ninja/make/compilers | **allow** / **require_approval** apt/brew/vcpkg |
+| `php-dev` | phpunit / composer validate | **allow** / **require_approval** require |
+| `ruby-dev` | rspec/rake/rubocop | **allow** / **require_approval** gem push |
+| `kotlin-dev` | Gradle Kotlin/Android local | **allow** / **require_approval** publish |
 | `ops-approve` | terraform apply, kubectl apply, docker push | **require_approval** |
-| `read-only` | Plan-mode inspection only (`ls`/`cat`/`rg`/`git` read, …) | **allow** inspect |
+| `read-only` | Plan-mode inspection only | **allow** inspect |
 
 List with `mayrun policy packs`.
 

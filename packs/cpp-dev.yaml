@@ -1,0 +1,47 @@
+# Local C/C++ build tools without system package installs by default.
+rules:
+  - id: pack.cpp.approve-install
+    effect: require_approval
+    reason: "Installs toolchain or packages from the network / OS package manager"
+    match:
+      any:
+        - argv: { binary: apt, args_prefix: [install] }
+        - argv: { binary: apt-get, args_prefix: [install] }
+        - argv: { binary: brew, args_prefix: [install] }
+        - argv: { binary: dnf, args_prefix: [install] }
+        - argv: { binary: yum, args_prefix: [install] }
+        - argv: { binary: pacman, args_prefix: [-S] }
+        - argv: { binary: vcpkg, args_prefix: [install] }
+        - argv: { binary: conan, args_prefix: [install] }
+        - capability_any: [pkg.install]
+
+  - id: pack.cpp.allow-cmake
+    effect: allow
+    reason: "cmake configure / build / test"
+    match:
+      any:
+        - argv: { binary: cmake }
+        - argv: { binary: ctest }
+        - argv: { binary: cpack }
+
+  - id: pack.cpp.allow-ninja-make
+    effect: allow
+    reason: "ninja / make local build"
+    match:
+      any:
+        - argv: { binary: ninja }
+        - argv: { binary: make }
+        - argv: { binary: gmake }
+
+  - id: pack.cpp.allow-compilers
+    effect: allow
+    reason: "cc / c++ / clang / gcc local compile"
+    match:
+      any:
+        - argv: { binary: cc }
+        - argv: { binary: c++ }
+        - argv: { binary: gcc }
+        - argv: { binary: g++ }
+        - argv: { binary: clang }
+        - argv: { binary: clang++ }
+        - argv: { binary: meson }

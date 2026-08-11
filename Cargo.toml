@@ -55,18 +55,7 @@ uuid = { version = "1", features = ["v4"] }
 [dev-dependencies]
 tempfile = "3"
 
-# cargo-dist — GitHub Releases on version tags (macOS/Linux; Windows best-effort).
-[package.metadata.dist]
-cargo-dist-version = "0.28.0"
-ci = ["github"]
-installers = ["shell"]
-targets = [
-  "aarch64-apple-darwin",
-  "x86_64-apple-darwin",
-  "x86_64-unknown-linux-gnu",
-  "aarch64-unknown-linux-gnu",
-  "x86_64-pc-windows-msvc",
-]
-unix-archive = ".tar.gz"
-windows-archive = ".zip"
-pr-run-mode = "plan"
+# The profile that 'dist' will build with
+[profile.dist]
+inherits = "release"
+lto = "thin"

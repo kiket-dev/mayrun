@@ -1,4 +1,5 @@
 # Local Rust toolchain without publish / install from network by default.
+# Compose with shell-basics for ls/pwd/mayrun allows.
 rules:
   - id: pack.rust.approve-publish
     effect: require_approval
@@ -61,15 +62,3 @@ rules:
       any:
         - argv: { binary: cargo, args_prefix: [tree] }
         - argv: { binary: cargo, args_prefix: [metadata] }
-
-  - id: pack.rust.allow-unix-read
-    effect: allow
-    reason: "Common read-only shell utilities"
-    match:
-      regex: '^(ls|pwd|echo|cat|head|tail|rg|grep|find|wc|date|whoami|uname)(\s|$)'
-
-  - id: pack.rust.allow-mayrun
-    effect: allow
-    reason: "mayrun introspection"
-    match:
-      argv: { binary: mayrun }

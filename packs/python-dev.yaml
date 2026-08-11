@@ -1,0 +1,64 @@
+# Local Python toolchain without network install / publish by default.
+rules:
+  - id: pack.python.approve-publish
+    effect: require_approval
+    reason: "Publishes a package to a registry"
+    match:
+      any:
+        - argv: { binary: twine, args_prefix: [upload] }
+        - argv: { binary: poetry, args_prefix: [publish] }
+        - argv: { binary: flit, args_prefix: [publish] }
+        - argv: { binary: hatch, args_prefix: [publish] }
+        - capability_any: [pkg.publish]
+
+  - id: pack.python.approve-install
+    effect: require_approval
+    reason: "Installs packages from the network"
+    match:
+      any:
+        - argv: { binary: pip, args_prefix: [install] }
+        - argv: { binary: pip3, args_prefix: [install] }
+        - argv: { binary: python, args_prefix: [-m, pip, install] }
+        - argv: { binary: python3, args_prefix: [-m, pip, install] }
+        - argv: { binary: poetry, args_prefix: [add] }
+        - argv: { binary: poetry, args_prefix: [install] }
+        - argv: { binary: uv, args_prefix: [add] }
+        - argv: { binary: uv, args_prefix: [pip, install] }
+        - argv: { binary: pipenv, args_prefix: [install] }
+        - capability_any: [pkg.install]
+
+  - id: pack.python.allow-pytest
+    effect: allow
+    reason: "pytest"
+    match:
+      any:
+        - argv: { binary: pytest }
+        - argv: { binary: python, args_prefix: [-m, pytest] }
+        - argv: { binary: python3, args_prefix: [-m, pytest] }
+
+  - id: pack.python.allow-unittest
+    effect: allow
+    reason: "python -m unittest"
+    match:
+      any:
+        - argv: { binary: python, args_prefix: [-m, unittest] }
+        - argv: { binary: python3, args_prefix: [-m, unittest] }
+
+  - id: pack.python.allow-lint-format
+    effect: allow
+    reason: "ruff / mypy / black / isort local checks"
+    match:
+      any:
+        - argv: { binary: ruff }
+        - argv: { binary: mypy }
+        - argv: { binary: black }
+        - argv: { binary: isort }
+        - argv: { binary: pylint }
+
+  - id: pack.python.allow-module-run
+    effect: allow
+    reason: "Local python -m module (non-pip)"
+    match:
+      any:
+        - argv: { binary: python, args_prefix: [-m] }
+        - argv: { binary: python3, args_prefix: [-m] }

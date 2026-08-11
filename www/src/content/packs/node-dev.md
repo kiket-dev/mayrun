@@ -6,4 +6,4 @@ packId: node-dev
 order: 8
 ---
 
-Allows everyday package scripts. Registry publish and network installs require approval.
+Allows everyday package scripts. Registry publish and network installs require approval. Compose with [`shell-basics`](/packs/shell-basics) for everyday unix/mayrun allows.

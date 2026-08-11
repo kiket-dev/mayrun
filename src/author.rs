@@ -18,7 +18,7 @@ pub fn draft_policy(intent: &str) -> Result<String, String> {
 
 fn heuristic_draft(intent: &str) -> String {
     let lower = intent.to_ascii_lowercase();
-    let mut extends: Vec<&str> = vec!["dangerous-defaults"];
+    let mut extends: Vec<&str> = vec!["dangerous-defaults", "shell-basics"];
     if lower.contains("rust") || lower.contains("cargo") {
         extends.push("rust-dev");
     }
@@ -26,10 +26,38 @@ fn heuristic_draft(intent: &str) -> String {
         || lower.contains("npm")
         || lower.contains("pnpm")
         || lower.contains("yarn")
+        || lower.contains("typescript")
+        || lower.contains("javascript")
     {
         extends.push("node-dev");
     }
-    if lower.contains("git") || extends.len() == 1 {
+    if lower.contains("python") || lower.contains("pytest") || lower.contains("pip") {
+        extends.push("python-dev");
+    }
+    if lower.contains("golang") || lower.contains(" go ") || lower.starts_with("go ") || lower.contains("go.")
+    {
+        extends.push("go-dev");
+    }
+    if lower.contains("java") || lower.contains("maven") || lower.contains("gradle") {
+        extends.push("java-dev");
+    }
+    if lower.contains("dotnet") || lower.contains(".net") || lower.contains("csharp") || lower.contains("c#")
+    {
+        extends.push("dotnet-dev");
+    }
+    if lower.contains("c++") || lower.contains("cmake") || lower.contains("cpp") {
+        extends.push("cpp-dev");
+    }
+    if lower.contains("php") || lower.contains("composer") {
+        extends.push("php-dev");
+    }
+    if lower.contains("ruby") || lower.contains("bundler") || lower.contains("gemfile") {
+        extends.push("ruby-dev");
+    }
+    if lower.contains("kotlin") || lower.contains("android") {
+        extends.push("kotlin-dev");
+    }
+    if lower.contains("git") || extends.len() == 2 {
         extends.push("git-safe");
     }
     if lower.contains("kuber")
