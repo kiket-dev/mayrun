@@ -30,7 +30,7 @@ mayrun init --detect
 eval "$(mayrun shell-hook)"   # fish: mayrun shell-hook | source
 ```
 
-The hook fail-closes on **deny** / **require_approval** (prints `rule_id` + next steps). It coexists with Cursor/Claude native permissions.
+The hook fail-closes on **deny** / **require_approval** (prints `rule_id` + next steps). Outside a project (no policy), it **passes through** so `$HOME` shells are not bricked. Optional global policy: `~/.config/mayrun/policy.yaml` or `$MAYRUN_POLICY`. Policy discovery walks upward from the current directory.
 
 For agent shells that spawn `bash -lc`:
 
