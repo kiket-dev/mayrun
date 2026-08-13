@@ -56,27 +56,33 @@ pub fn mayrun_bin() -> String {
 
 /// Print shell-specific eval that installs a preexec/DEBUG gate.
 ///
-/// Allow: shell executes the command (check-only gate).
-/// Deny / require_approval: call `mayrun run` for actionable UX + receipt, then abort.
+/// Allow (exit 0): shell executes the command (check-only gate).
+/// Deny (3) / require_approval (2): call `mayrun run` for actionable UX + receipt, then abort.
+/// No policy (4) / other errors: pass through — do not brick shells outside a mayrun project.
 pub fn render_hook(shell: ShellKind, bin: &str) -> String {
     let bin_q = shell_escape_double(bin);
     match shell {
         ShellKind::Zsh => format!(
             r#"# mayrun shell-hook (zsh) — eval "$(mayrun shell-hook)"
-# Fail closed on deny / require_approval. Coexists with Cursor/Claude native permissions.
+# Gate only when a policy is present (exit 2/3). No policy (4) → pass through.
 mayrun_preexec() {{
-  local cmd="$1"
+  local cmd="$1" ec
   case "$cmd" in
     ''|mayrun\ *|*\ mayrun\ shell-hook*|*\ mayrun\ shell-wrap*) return 0 ;;
   esac
   if [[ -n "${{MAYRUN_HOOK_ACTIVE:-}}" ]]; then return 0; fi
   export MAYRUN_HOOK_ACTIVE=1
-  if ! "{bin}" check "$cmd" >/dev/null 2>&1; then
-    "{bin}" run "$cmd"
-    unset MAYRUN_HOOK_ACTIVE
-    kill -INT $$ 2>/dev/null || return 1
-  fi
-  unset MAYRUN_HOOK_ACTIVE
+  "{bin}" check "$cmd" >/dev/null 2>&1
+  ec=$?
+  case "$ec" in
+    0) unset MAYRUN_HOOK_ACTIVE; return 0 ;;
+    2|3)
+      "{bin}" run "$cmd"
+      unset MAYRUN_HOOK_ACTIVE
+      kill -INT $$ 2>/dev/null || return 1
+      ;;
+    *) unset MAYRUN_HOOK_ACTIVE; return 0 ;;
+  esac
 }}
 autoload -Uz add-zsh-hook 2>/dev/null || true
 add-zsh-hook -d preexec mayrun_preexec 2>/dev/null || true
@@ -86,24 +92,26 @@ add-zsh-hook preexec mayrun_preexec
         ),
         ShellKind::Bash => format!(
             r#"# mayrun shell-hook (bash) — eval "$(mayrun shell-hook)"
-# Fail closed via DEBUG trap. Coexists with Cursor/Claude native permissions.
+# Gate only when a policy is present (exit 2/3). No policy (4) → pass through.
 mayrun_debug_trap() {{
-  local cmd="$BASH_COMMAND"
+  local cmd="$BASH_COMMAND" ec
   case "$cmd" in
     ''|mayrun\ *|*\ mayrun\ shell-hook*|*\ mayrun\ shell-wrap*|mayrun_debug_trap*) return 0 ;;
   esac
   if [[ -n "${{MAYRUN_HOOK_ACTIVE:-}}" ]]; then return 0; fi
   export MAYRUN_HOOK_ACTIVE=1
-  if ! "{bin}" check "$cmd" >/dev/null 2>&1; then
-    "{bin}" run "$cmd"
-    local rc=$?
-    unset MAYRUN_HOOK_ACTIVE
-    echo "mayrun: blocked (exit $rc)" >&2
-    # Returning non-zero from DEBUG does not cancel BASH_COMMAND in all bash versions;
-    # force an interrupt so the interactive command does not proceed.
-    kill -INT $$ 2>/dev/null || return $rc
-  fi
-  unset MAYRUN_HOOK_ACTIVE
+  "{bin}" check "$cmd" >/dev/null 2>&1
+  ec=$?
+  case "$ec" in
+    0) unset MAYRUN_HOOK_ACTIVE; return 0 ;;
+    2|3)
+      "{bin}" run "$cmd"
+      unset MAYRUN_HOOK_ACTIVE
+      echo "mayrun: blocked (exit $ec)" >&2
+      kill -INT $$ 2>/dev/null || return $ec
+      ;;
+    *) unset MAYRUN_HOOK_ACTIVE; return 0 ;;
+  esac
 }}
 trap 'mayrun_debug_trap' DEBUG
 "#,
@@ -111,6 +119,7 @@ trap 'mayrun_debug_trap' DEBUG
         ),
         ShellKind::Fish => format!(
             r#"# mayrun shell-hook (fish) — mayrun shell-hook | source
+# Gate only when a policy is present (exit 2/3). No policy (4) → pass through.
 function mayrun_preexec --on-event fish_preexec
   set -l cmd $argv[1]
   if test -z "$cmd"; or string match -qr '^mayrun ' -- $cmd
@@ -120,13 +129,21 @@ function mayrun_preexec --on-event fish_preexec
     return
   end
   set -gx MAYRUN_HOOK_ACTIVE 1
-  if not "{bin}" check $cmd >/dev/null 2>&1
-    "{bin}" run $cmd
-    set -e MAYRUN_HOOK_ACTIVE
-    echo "mayrun: blocked" >&2
-    return 1
+  "{bin}" check $cmd >/dev/null 2>&1
+  set -l ec $status
+  switch $ec
+    case 0
+      set -e MAYRUN_HOOK_ACTIVE
+      return
+    case 2 3
+      "{bin}" run $cmd
+      set -e MAYRUN_HOOK_ACTIVE
+      echo "mayrun: blocked" >&2
+      return 1
+    case '*'
+      set -e MAYRUN_HOOK_ACTIVE
+      return
   end
-  set -e MAYRUN_HOOK_ACTIVE
 end
 "#,
             bin = bin_q
@@ -271,8 +288,10 @@ mod tests {
         assert!(h.contains("preexec"));
         assert!(h.contains("check"));
         assert!(h.contains("run"));
+        assert!(h.contains("2|3"), "hook must gate only deny/approve exits");
         let b = render_hook(ShellKind::Bash, "mayrun");
         assert!(b.contains("DEBUG"));
+        assert!(b.contains("2|3"));
     }
 
     #[test]

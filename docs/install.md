@@ -25,7 +25,9 @@ mayrun init --detect          # packs from project signals; --force to overwrite
 eval "$(mayrun shell-hook)"   # zsh/bash; fish: mayrun shell-hook | source
 ```
 
-The hook fail-closes on **deny** / **require_approval** (prints `rule_id` + next steps). It coexists with Cursor/Claude native permissions.
+The hook fail-closes on **deny** / **require_approval** (prints `rule_id` + next steps). If no policy is found (outside a project), the hook **passes through** so interactive shells in `$HOME` are not bricked. Optional global policy: `~/.config/mayrun/policy.yaml` or `$MAYRUN_POLICY`.
+
+Policy discovery walks from the current directory upward for `mayrun.policy.yaml`.
 
 For agent shells that spawn `bash -lc`:
 

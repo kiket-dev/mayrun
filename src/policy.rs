@@ -553,16 +553,40 @@ fn arg_value_as_str(arguments: &serde_json::Value, key: &str) -> Option<String> 
     }
 }
 
-/// Resolve policy path: explicit, then `./mayrun.policy.yaml`, then `./.mayrun/policy.yaml`.
+/// Resolve policy path.
+///
+/// Order: explicit `--policy` → `$MAYRUN_POLICY` → walk cwd upward for
+/// `mayrun.policy.yaml` / `.mayrun/policy.yaml` → `~/.config/mayrun/policy.yaml`.
 pub fn find_policy_path(explicit: Option<&Path>) -> Option<PathBuf> {
     if let Some(p) = explicit {
         return Some(p.to_path_buf());
     }
-    let candidates = [
-        PathBuf::from("mayrun.policy.yaml"),
-        PathBuf::from(".mayrun/policy.yaml"),
-    ];
-    candidates.into_iter().find(|p| p.is_file())
+    if let Ok(p) = std::env::var("MAYRUN_POLICY") {
+        let path = PathBuf::from(p);
+        if path.is_file() {
+            return Some(path);
+        }
+    }
+    if let Ok(mut dir) = std::env::current_dir() {
+        loop {
+            for name in ["mayrun.policy.yaml", ".mayrun/policy.yaml"] {
+                let candidate = dir.join(name);
+                if candidate.is_file() {
+                    return Some(candidate);
+                }
+            }
+            if !dir.pop() {
+                break;
+            }
+        }
+    }
+    user_config_policy().filter(|p| p.is_file())
+}
+
+/// `~/.config/mayrun/policy.yaml` (XDG) — optional global gate when no project policy.
+pub fn user_config_policy() -> Option<PathBuf> {
+    let home = std::env::var_os("HOME")?;
+    Some(PathBuf::from(home).join(".config/mayrun/policy.yaml"))
 }
 
 pub fn load_policy(path: &Path) -> Result<CompiledPolicy, PolicyError> {

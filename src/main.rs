@@ -266,7 +266,13 @@ async fn run() -> Result<ExitCode> {
             Ok(ExitCode::SUCCESS)
         }
         Commands::Check { command, policy } => {
-            let path = resolve_policy(policy)?;
+            let Some(path) = find_policy_path(policy.as_deref()) else {
+                // Exit 4: shell-hook passes through outside projects (no brick).
+                eprintln!(
+                    "mayrun: no policy found\n  fix: run `mayrun init` or `mayrun init --detect` in the project root, or pass --policy <path>\n  tip: optional global gate at ~/.config/mayrun/policy.yaml or $MAYRUN_POLICY"
+                );
+                return Ok(ExitCode::from(4));
+            };
             let compiled = load_policy(&path)?;
             let ev = compiled.evaluate_detailed(&command);
             println!(
@@ -572,7 +578,7 @@ async fn run() -> Result<ExitCode> {
 fn resolve_policy(explicit: Option<PathBuf>) -> Result<PathBuf> {
     find_policy_path(explicit.as_deref()).ok_or_else(|| {
         anyhow::anyhow!(
-            "no policy found\n  fix: run `mayrun init` or `mayrun init --detect` in the project root, or pass --policy <path>"
+            "no policy found\n  fix: run `mayrun init` or `mayrun init --detect` in the project root, or pass --policy <path>\n  tip: optional global gate at ~/.config/mayrun/policy.yaml or $MAYRUN_POLICY"
         )
     })
 }
